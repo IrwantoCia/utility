@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
+	"github.com/IrwantoCia/utility/internal/tui/csv"
 	"github.com/IrwantoCia/utility/internal/tui/transcribe"
 	"github.com/IrwantoCia/utility/internal/tui/upload"
 )
@@ -126,6 +127,7 @@ func Run() {
 		help:   help.New(),
 		keys:   DefaultKeyMap,
 		menus: []menu{
+			{name: "CSV", component: csv.New()},
 			{name: "Upload", component: upload.New()},
 			{name: "Transcribe", component: transcribe.New()},
 		},
