@@ -1,0 +1,129 @@
+// Package tui implements the terminal-based user interface main menu and
+// navigation.
+package tui
+
+import (
+	"fmt"
+	"os"
+	"strings"
+
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"github.com/IrwantoCia/utility/internal/tui/common"
+	"github.com/IrwantoCia/utility/internal/tui/transcribe"
+	"github.com/IrwantoCia/utility/internal/tui/upload"
+)
+
+type menu struct {
+	name      string
+	component common.Component
+}
+
+type model struct {
+	menus  []menu
+	cursor int
+	active int // -1 = menu, >= 0 = active page index
+	help   help.Model
+	keys   KeyMap
+}
+
+func (m model) activeComponent() common.Component {
+	if m.active < 0 || m.active >= len(m.menus) {
+		return nil
+	}
+	return m.menus[m.active].component
+}
+
+func (m model) Init() tea.Cmd {
+	return nil
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// If a page is active, forward message to it
+	if comp := m.activeComponent(); comp != nil {
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(keyMsg, m.keys.Esc) {
+			m.active = -1
+			return m, nil
+		}
+		cmd := comp.Update(msg)
+		return m, cmd
+	}
+
+	// Menu navigation
+	switch msg := msg.(type) {
+	case tea.KeyPressMsg:
+		switch {
+		case key.Matches(msg, m.keys.Up):
+			m.cursor--
+			if m.cursor < 0 {
+				m.cursor = len(m.menus) - 1
+			}
+		case key.Matches(msg, m.keys.Down):
+			m.cursor++
+			if m.cursor >= len(m.menus) {
+				m.cursor = 0
+			}
+		case key.Matches(msg, m.keys.Select):
+			m.active = m.cursor
+		case key.Matches(msg, m.keys.Quit):
+			return m, tea.Quit
+		}
+	}
+
+	return m, nil
+}
+
+func (m model) View() tea.View {
+	var content string
+	var keymap help.KeyMap
+
+	if comp := m.activeComponent(); comp != nil {
+		content = comp.View()
+		keymap = comp.KeyMap()
+		content += "\n"
+	} else {
+		content = view(m)
+		keymap = m.keys
+	}
+
+	content += "\n" + m.help.View(keymap)
+
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
+}
+
+func view(m model) string {
+	var sb strings.Builder
+	sb.WriteString("Menu\n")
+
+	for i, v := range m.menus {
+		if m.cursor == i {
+			sb.WriteString("> ")
+		}
+		sb.WriteString(v.name)
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+func Run() {
+	m := model{
+		cursor: 0,
+		active: -1,
+		help:   help.New(),
+		keys:   DefaultKeyMap,
+		menus: []menu{
+			{name: "Upload", component: upload.New()},
+			{name: "Transcribe", component: transcribe.New()},
+		},
+	}
+	p := tea.NewProgram(m)
+
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
+	}
+}
