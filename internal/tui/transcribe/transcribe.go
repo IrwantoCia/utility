@@ -24,7 +24,7 @@ var _ common.Component = (*Transcribe)(nil)
 
 func New() *Transcribe {
 	return &Transcribe{
-		Messages:  []string{"hello from transcribe", "this is the second message"},
+		Messages:  []string{"File: ", "Nothing"},
 		Selected:  1,
 		keys:      DefaultKeyMap,
 		picker:    filepicker.New(),
@@ -47,8 +47,8 @@ func (t *Transcribe) View() string {
 		return t.picker.View()
 	}
 
-	if t.filePath != "" {
-		return "selected file: " + t.filePath + "\n\n" + t.helpModel.View(t.keys)
+	if t.filePath != "" && t.Selected == 1 {
+		return t.Messages[t.Selected-1] + t.filePath + "\n\n" + t.helpModel.View(t.keys)
 	}
 
 	return t.Messages[t.Selected-1] + "\n\n" + t.helpModel.View(t.keys)
@@ -80,6 +80,7 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		case key.Matches(msg, t.keys.Enter):
 			if t.Selected == 1 {
 				t.filePath = ""
+				t.picker.SelectedFile = ""
 				t.isInPicker = true
 				return t.picker.Init()
 			}
