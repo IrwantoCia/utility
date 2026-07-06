@@ -17,6 +17,8 @@ func New() *Upload {
 	return &Upload{keys: DefaultKeyMap}
 }
 
+func (u *Upload) Init() tea.Cmd { return nil }
+
 func (u *Upload) View() string {
 	return "Hello Adit"
 }

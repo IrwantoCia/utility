@@ -5,7 +5,6 @@ import (
 	"charm.land/bubbles/v2/key"
 )
 
-// KeyMap defines key bindings for the main menu.
 type KeyMap struct {
 	Up     key.Binding
 	Down   key.Binding
@@ -14,7 +13,6 @@ type KeyMap struct {
 	Esc    key.Binding
 }
 
-// DefaultKeyMap is the default set of key bindings for the main menu.
 var DefaultKeyMap = KeyMap{
 	Up:     key.NewBinding(key.WithKeys("k", "up"),     key.WithHelp("k", "up")),
 	Down:   key.NewBinding(key.WithKeys("j", "down"),   key.WithHelp("j", "down")),

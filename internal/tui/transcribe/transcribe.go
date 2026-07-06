@@ -25,6 +25,8 @@ func New() *Transcribe {
 	}
 }
 
+func (t *Transcribe) Init() tea.Cmd { return nil }
+
 func (t *Transcribe) View() string {
 	return t.Messages[t.Selected-1]
 }

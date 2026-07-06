@@ -42,9 +42,14 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// If a page is active, forward message to it
 	if comp := m.activeComponent(); comp != nil {
-		if keyMsg, ok := msg.(tea.KeyPressMsg); ok && key.Matches(keyMsg, m.keys.Esc) {
-			m.active = -1
-			return m, nil
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			switch {
+			case key.Matches(keyMsg, m.keys.Esc):
+				m.active = -1
+				return m, nil
+			case key.Matches(keyMsg, m.keys.Quit):
+				return m, tea.Quit
+			}
 		}
 		cmd := comp.Update(msg)
 		return m, cmd
@@ -66,6 +71,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, m.keys.Select):
 			m.active = m.cursor
+			return m, m.menus[m.cursor].component.Init()
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
 		}

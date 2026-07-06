@@ -1,6 +1,7 @@
-package upload
+package filepicker
 
 import (
+	fp "charm.land/bubbles/v2/filepicker"
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 )
@@ -14,7 +15,16 @@ var DefaultKeyMap = KeyMap{
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.Esc}
+	fpk := fp.DefaultKeyMap()
+	return []key.Binding{
+		km.Esc,
+		fpk.Up,
+		fpk.Down,
+		fpk.GoToTop,
+		fpk.GoToLast,
+		fpk.Back,
+		fpk.Open,
+	}
 }
 
 func (km KeyMap) FullHelp() [][]key.Binding {

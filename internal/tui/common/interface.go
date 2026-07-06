@@ -8,6 +8,7 @@ import (
 )
 
 type Component interface {
+	Init() tea.Cmd
 	View() string
 	Update(msg tea.Msg) tea.Cmd
 	KeyMap() help.KeyMap
