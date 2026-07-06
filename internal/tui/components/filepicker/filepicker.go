@@ -21,13 +21,14 @@ type FilePicker struct {
 	SelectedFile string
 	err          error
 	keys         KeyMap
+	helpModel    help.Model
 }
 
 var _ common.Component = (*FilePicker)(nil)
 
 func New() *FilePicker {
 	m := fp.New()
-	m.CurrentDirectory, _ = os.UserHomeDir()
+	m.CurrentDirectory, _ = os.Getwd()
 	m.ShowPermissions = false
 	m.KeyMap.Back = key.NewBinding(
 		key.WithKeys("h", "backspace", "left"),
@@ -35,13 +36,21 @@ func New() *FilePicker {
 	)
 
 	return &FilePicker{
-		Model: m,
-		keys:  DefaultKeyMap,
+		Model:     m,
+		keys:      DefaultKeyMap,
+		helpModel: help.New(),
 	}
 }
 
 func (f *FilePicker) Init() tea.Cmd {
 	return f.Model.Init()
+}
+
+func (f *FilePicker) Resize(ws tea.WindowSizeMsg) tea.Cmd {
+	f.helpModel, _ = f.helpModel.Update(ws)
+	var cmd tea.Cmd
+	f.Model, cmd = f.Model.Update(ws)
+	return cmd
 }
 
 func (f *FilePicker) Update(msg tea.Msg) tea.Cmd {
@@ -68,26 +77,15 @@ func (f *FilePicker) Update(msg tea.Msg) tea.Cmd {
 
 func (f *FilePicker) View() string {
 	var s strings.Builder
-
+	s.WriteString("Please select:\n\n")
 	if f.err != nil {
 		s.WriteString(f.Model.Styles.DisabledFile.Render(f.err.Error()))
 		s.WriteString("\n\n")
 	}
-
-	s.WriteString("Selected file: ")
-	if f.SelectedFile != "" {
-		s.WriteString(f.Model.Styles.Selected.Render(f.SelectedFile))
-		s.WriteString("\nPress Enter to reopen the picker.")
-	} else {
-		s.WriteString("\n")
-		s.WriteString(f.Model.View())
-	}
-
+	s.WriteString(f.Model.View())
+	s.WriteString("\n\n")
+	s.WriteString(f.helpModel.View(f.keys))
 	return s.String()
-}
-
-func (f *FilePicker) KeyMap() help.KeyMap {
-	return f.keys
 }
 
 func clearErrorAfter(d time.Duration) tea.Cmd {

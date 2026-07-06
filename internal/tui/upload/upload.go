@@ -8,23 +8,31 @@ import (
 )
 
 type Upload struct {
-	keys KeyMap
+	keys      KeyMap
+	helpModel help.Model
 }
 
 var _ common.Component = (*Upload)(nil)
 
 func New() *Upload {
-	return &Upload{keys: DefaultKeyMap}
+	return &Upload{
+		keys:      DefaultKeyMap,
+		helpModel: help.New(),
+	}
 }
 
 func (u *Upload) Init() tea.Cmd { return nil }
 
-func (u *Upload) View() string {
-	return "Hello Adit"
-}
-
-func (u *Upload) Update(tea.Msg) tea.Cmd {
+func (u *Upload) Resize(ws tea.WindowSizeMsg) tea.Cmd {
+	u.helpModel, _ = u.helpModel.Update(ws)
 	return nil
 }
 
-func (u *Upload) KeyMap() help.KeyMap { return u.keys }
+func (u *Upload) View() string {
+	return "Hello Adit\n\n" + u.helpModel.View(u.keys)
+}
+
+func (u *Upload) Update(msg tea.Msg) tea.Cmd {
+	u.helpModel, _ = u.helpModel.Update(msg)
+	return nil
+}

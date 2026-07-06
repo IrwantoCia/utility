@@ -57,6 +57,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Menu navigation
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		// Forward to all components so they have correct terminal dimensions
+		var cmds []tea.Cmd
+		for _, menu := range m.menus {
+			cmd := menu.component.Resize(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return m, tea.Batch(cmds...)
 	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, m.keys.Up):
@@ -82,18 +92,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() tea.View {
 	var content string
-	var keymap help.KeyMap
 
 	if comp := m.activeComponent(); comp != nil {
 		content = comp.View()
-		keymap = comp.KeyMap()
-		content += "\n"
 	} else {
 		content = view(m)
-		keymap = m.keys
+		content += "\n" + m.help.View(m.keys)
 	}
-
-	content += "\n" + m.help.View(keymap)
 
 	v := tea.NewView(content)
 	v.AltScreen = true

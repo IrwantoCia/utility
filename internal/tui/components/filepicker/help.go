@@ -7,11 +7,13 @@ import (
 )
 
 type KeyMap struct {
-	Esc key.Binding
+	Esc   key.Binding
+	Enter key.Binding
 }
 
 var DefaultKeyMap = KeyMap{
-	Esc: key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+	Esc:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+	Enter: key.NewBinding(key.WithKeys("enter")),
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
