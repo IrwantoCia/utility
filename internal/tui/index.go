@@ -40,13 +40,14 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// If a page is active, forward message to it
+	if _, ok := msg.(common.BackToMenuMsg); ok {
+		m.active = -1
+		return m, nil
+	}
+
 	if comp := m.activeComponent(); comp != nil {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 			switch {
-			case key.Matches(keyMsg, m.keys.Esc):
-				m.active = -1
-				return m, nil
 			case key.Matches(keyMsg, m.keys.Quit):
 				return m, tea.Quit
 			}
@@ -55,10 +56,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 
-	// Menu navigation
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// Forward to all components so they have correct terminal dimensions
 		var cmds []tea.Cmd
 		for _, menu := range m.menus {
 			cmd := menu.component.Resize(msg)

@@ -3,6 +3,7 @@ package upload
 
 import (
 	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 )
@@ -34,5 +35,14 @@ func (u *Upload) View() string {
 
 func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 	u.helpModel, _ = u.helpModel.Update(msg)
+
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		if key.Matches(keyMsg, u.keys.Esc) {
+			return func() tea.Msg {
+				return common.BackToMenuMsg{}
+			}
+		}
+	}
+
 	return nil
 }

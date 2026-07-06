@@ -56,6 +56,13 @@ func (t *Transcribe) View() string {
 
 func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 	if t.isInPicker {
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			if key.Matches(keyMsg, t.keys.Esc) {
+				t.isInPicker = false
+				return nil
+			}
+		}
+
 		cmd := t.picker.Update(msg)
 		if t.picker.SelectedFile != "" {
 			t.filePath = t.picker.SelectedFile
@@ -67,6 +74,10 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		switch {
+		case key.Matches(msg, t.keys.Esc):
+			return func() tea.Msg {
+				return common.BackToMenuMsg{}
+			}
 		case key.Matches(msg, t.keys.Up):
 			t.Selected -= 1
 			if t.Selected <= 0 {

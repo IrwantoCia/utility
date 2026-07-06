@@ -4,6 +4,9 @@ package common
 
 import tea "charm.land/bubbletea/v2"
 
+// BackToMenuMsg is sent by a component when it wants to return to the main menu.
+type BackToMenuMsg struct{}
+
 type Component interface {
 	Init() tea.Cmd
 	View() string
