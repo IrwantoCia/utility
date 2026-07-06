@@ -8,6 +8,7 @@ import (
 // Styles holds all reusable styles for the TUI.
 type Styles struct {
 	Highlighted lipgloss.Style
+	Action      lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -15,6 +16,12 @@ func DefaultStyles() Styles {
 	return Styles{
 		Highlighted: lipgloss.NewStyle().
 			Background(lipgloss.Color("62")).
+			Foreground(lipgloss.Color("255")).
+			Bold(true).
+			PaddingLeft(1).
+			PaddingRight(1),
+		Action: lipgloss.NewStyle().
+			Background(lipgloss.Color("2")).
 			Foreground(lipgloss.Color("255")).
 			Bold(true).
 			PaddingLeft(1).

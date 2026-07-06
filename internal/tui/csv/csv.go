@@ -12,12 +12,24 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
-type input struct {
-	file string
+// OptionType distinguishes input options from action options.
+type OptionType int
+
+const (
+	TypeInput OptionType = iota
+	TypeAction
+)
+
+// Option represents a single configurable action/input in the CSV workflow.
+type Option struct {
+	Label string
+	Value string
+	Type  OptionType
 }
 
 type Model struct {
-	input      input
+	options    []Option
+	cursor     int
 	keys       KeyMap
 	helpModel  help.Model
 	picker     *filepicker.FilePicker
@@ -28,7 +40,11 @@ var _ common.Component = (*Model)(nil)
 
 func New() *Model {
 	return &Model{
-		input:     input{},
+		options: []Option{
+			{Label: "Select File"},
+			{Label: "Show CSV", Type: TypeAction},
+		},
+		cursor:    0,
 		keys:      DefaultKeyMap,
 		helpModel: help.New(),
 		picker:    filepicker.New(),
@@ -53,15 +69,37 @@ func (m *Model) View() string {
 	var s strings.Builder
 	s.WriteString("CSV\n\n")
 
-	if m.input.file != "" {
-		s.WriteString("File: ")
-		s.WriteString(m.input.file)
-		s.WriteString("\n")
-	} else {
-		s.WriteString(style.Default.Highlighted.Render("> Select File"))
+	var prevType OptionType
+	for i, opt := range m.options {
+		if i > 0 && opt.Type != prevType {
+			s.WriteString("  ──────────\n")
+		}
+		prevType = opt.Type
+
+		cursor := "  "
+		if i == m.cursor {
+			cursor = "> "
+		}
+
+		display := opt.Label
+		if opt.Value != "" {
+			display = opt.Value
+		}
+
+		if i == m.cursor {
+			s.WriteString(cursor)
+			st := style.Default.Highlighted
+			if opt.Type == TypeAction {
+				st = style.Default.Action
+			}
+			s.WriteString(st.Render(display))
+		} else {
+			s.WriteString(cursor + display)
+		}
 		s.WriteString("\n")
 	}
 
+	s.WriteString("\n")
 	s.WriteString(m.helpModel.View(m.keys))
 	return s.String()
 }
@@ -77,7 +115,7 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 
 		cmd := m.picker.Update(msg)
 		if m.picker.SelectedFile != "" {
-			m.input.file = m.picker.SelectedFile
+			m.options[m.cursor].Value = m.picker.SelectedFile
 			m.isInPicker = false
 		}
 		return cmd
@@ -91,6 +129,10 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 			return func() tea.Msg {
 				return common.BackToMenuMsg{}
 			}
+		case key.Matches(keyMsg, m.keys.Up):
+			m.cursor = max(m.cursor-1, 0)
+		case key.Matches(keyMsg, m.keys.Down):
+			m.cursor = min(m.cursor+1, len(m.options)-1)
 		case key.Matches(keyMsg, m.keys.Enter):
 			m.picker.SelectedFile = ""
 			m.isInPicker = true
