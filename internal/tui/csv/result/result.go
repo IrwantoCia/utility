@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -28,20 +29,29 @@ type Result struct {
 	err           error
 	keys          KeyMap
 	helpModel     help.Model
+	searchInput   textinput.Model
 }
 
 var _ common.Component = (*Result)(nil)
 
 func New(filePath string) *Result {
+	ti := textinput.New()
+	ti.Placeholder = "Search..."
+	ti.CharLimit = 64
+	ti.SetWidth(30)
 	return &Result{
-		filePath:  filePath,
-		keys:      DefaultKeyMap,
-		helpModel: help.New(),
+		filePath:    filePath,
+		keys:        DefaultKeyMap,
+		helpModel:   help.New(),
+		searchInput: ti,
 	}
 }
 
 func (r *Result) Init() tea.Cmd {
-	return r.loadCSV()
+	return tea.Batch(
+		r.loadCSV(),
+		r.searchInput.Focus(),
+	)
 }
 
 // loadCSV parses the CSV file using the generic parser.
@@ -77,8 +87,8 @@ func (r *Result) buildTable() {
 	if r.width > 0 {
 		r.table = r.table.Width(r.width)
 	}
-	// Table height = total minus status(1) + blank(1) + help(~2)
-	tableHeight := max(3, r.height-4)
+	// Table height = total minus search(1) + blank(1) + status(1) + blank(1) + help(~2)
+	tableHeight := max(3, r.height-6)
 	r.table = r.table.Height(tableHeight)
 }
 
@@ -86,8 +96,9 @@ func (r *Result) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	r.width = ws.Width
 	r.height = ws.Height
 	r.helpModel, _ = r.helpModel.Update(ws)
+	r.searchInput.SetWidth(max(20, ws.Width-10))
 	if r.table != nil {
-		tableHeight := max(3, r.height-4)
+		tableHeight := max(3, r.height-6) // -6 to account for search input
 		r.table = r.table.Width(ws.Width).Height(tableHeight)
 	}
 	return nil
@@ -106,6 +117,9 @@ func (r *Result) View() string {
 	statusStr := fmt.Sprintf("Showing %d rows", len(r.rows))
 
 	var s strings.Builder
+	s.WriteString("Search: ")
+	s.WriteString(r.searchInput.View())
+	s.WriteString("\n\n")
 	s.WriteString(r.table.String())
 	s.WriteString("\n")
 	s.WriteString(statusStr)
@@ -121,6 +135,19 @@ func (r *Result) View() string {
 }
 
 func (r *Result) Update(msg tea.Msg) tea.Cmd {
+	// If search input is focused, delegate to it
+	if r.searchInput.Focused() {
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			if key.Matches(keyMsg, r.keys.Esc) {
+				r.searchInput.Blur()
+				return nil
+			}
+		}
+		var cmd tea.Cmd
+		r.searchInput, cmd = r.searchInput.Update(msg)
+		return cmd
+	}
+
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		case key.Matches(keyMsg, r.keys.Esc):
@@ -137,6 +164,9 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 				r.cursor = (r.cursor + 1) % len(r.rows)
 				r.buildTable()
 			}
+		case key.Matches(keyMsg, r.keys.Enter):
+			r.searchInput.Focus()
+			return nil
 		}
 	}
 	return nil
