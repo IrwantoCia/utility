@@ -49,7 +49,7 @@ func (c *Csv) View() string {
 }
 
 // Update dispatches to the active sub-page, intercepting
-// ShowResultMsg to switch pages and BackToMenuMsg to return to menu.
+// ShowResultMsg to switch pages and BackToCsvMenuMsg to return to menu.
 func (c *Csv) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case menu.ShowResultMsg:
@@ -57,6 +57,9 @@ func (c *Csv) Update(msg tea.Msg) tea.Cmd {
 		c.resultModel = result.New(msg.FilePath)
 		c.resultModel.Resize(c.lastWindow)
 		return c.resultModel.Init()
+	case result.BackToCsvMenuMsg:
+		c.currentPage = pageMenu
+		return nil
 	}
 
 	var cmd tea.Cmd
@@ -66,22 +69,6 @@ func (c *Csv) Update(msg tea.Msg) tea.Cmd {
 	case pageResult:
 		if c.resultModel != nil {
 			cmd = c.resultModel.Update(msg)
-		}
-	}
-
-	// Wrap result page cmds to intercept BackToMenuMsg
-	// so Esc returns to CSV menu instead of the main menu.
-	if c.currentPage == pageResult {
-		return func() tea.Msg {
-			if cmd == nil {
-				return nil
-			}
-			m := cmd()
-			if _, ok := m.(common.BackToMenuMsg); ok {
-				c.currentPage = pageMenu
-				return nil
-			}
-			return m
 		}
 	}
 

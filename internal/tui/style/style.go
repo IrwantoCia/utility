@@ -7,8 +7,9 @@ import (
 
 // Styles holds all reusable styles for the TUI.
 type Styles struct {
-	Highlighted lipgloss.Style
-	Action      lipgloss.Style
+	Highlighted    lipgloss.Style
+	Action         lipgloss.Style
+	RowHighlighted lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -26,6 +27,9 @@ func DefaultStyles() Styles {
 			Bold(true).
 			PaddingLeft(1).
 			PaddingRight(1),
+		RowHighlighted: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("229")).
+			Background(lipgloss.Color("57")),
 	}
 }
 

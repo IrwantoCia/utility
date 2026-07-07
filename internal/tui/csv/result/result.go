@@ -11,7 +11,11 @@ import (
 	"charm.land/lipgloss/v2/table"
 	csvparser "github.com/IrwantoCia/utility/internal/helper/parser/csv_parser"
 	"github.com/IrwantoCia/utility/internal/tui/common"
+	"github.com/IrwantoCia/utility/internal/tui/style"
 )
+
+// BackToCsvMenuMsg tells the coordinator to switch from result back to the CSV menu.
+type BackToCsvMenuMsg struct{}
 
 type Result struct {
 	filePath string
@@ -65,13 +69,8 @@ func (r *Result) buildTable() {
 		Rows(r.rows...).
 		Border(lipgloss.NormalBorder()).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == 0 {
-				return lipgloss.NewStyle().Bold(true)
-			}
-			if row-1 == r.cursor {
-				return lipgloss.NewStyle().
-					Foreground(lipgloss.Color("229")).
-					Background(lipgloss.Color("57"))
+			if row == r.cursor {
+				return style.Default.RowHighlighted
 			}
 			return lipgloss.NewStyle()
 		})
@@ -126,16 +125,16 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 		switch {
 		case key.Matches(keyMsg, r.keys.Esc):
 			return func() tea.Msg {
-				return common.BackToMenuMsg{}
+				return BackToCsvMenuMsg{}
 			}
 		case key.Matches(keyMsg, r.keys.Up):
-			if r.cursor > 0 {
-				r.cursor--
+			if len(r.rows) > 0 {
+				r.cursor = (r.cursor - 1 + len(r.rows)) % len(r.rows)
 				r.buildTable()
 			}
 		case key.Matches(keyMsg, r.keys.Down):
-			if r.cursor < len(r.rows)-1 {
-				r.cursor++
+			if len(r.rows) > 0 {
+				r.cursor = (r.cursor + 1) % len(r.rows)
 				r.buildTable()
 			}
 		}
