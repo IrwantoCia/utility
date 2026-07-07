@@ -87,7 +87,7 @@ func (r *Result) buildContent() {
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == table.HeaderRow {
 				// Header row
-				return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("63"))
+				return style.Default.TableHeader
 			}
 			// Highlight cursor row (row is 1-indexed: row 1 = first data row)
 			if row == r.cursor {
@@ -95,7 +95,7 @@ func (r *Result) buildContent() {
 			}
 			// Alternate colors for non-cursor rows
 			if row%2 == 0 {
-				return lipgloss.NewStyle().Background(lipgloss.Color("235"))
+				return style.Default.TableRowAlt
 			}
 			return lipgloss.NewStyle()
 		})

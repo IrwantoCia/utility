@@ -10,6 +10,8 @@ type Styles struct {
 	Highlighted    lipgloss.Style
 	Action         lipgloss.Style
 	RowHighlighted lipgloss.Style
+	TableHeader    lipgloss.Style
+	TableRowAlt    lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -30,6 +32,12 @@ func DefaultStyles() Styles {
 		RowHighlighted: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("229")).
 			Background(lipgloss.Color("57")),
+		TableHeader: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("229")).
+			Background(lipgloss.Color("63")),
+		TableRowAlt: lipgloss.NewStyle().
+			Background(lipgloss.Color("235")),
 	}
 }
 
