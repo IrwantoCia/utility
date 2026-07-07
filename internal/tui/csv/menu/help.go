@@ -1,4 +1,5 @@
-package csv
+// Package menu provides the CSV file selection menu page.
+package menu
 
 import (
 	"charm.land/bubbles/v2/help"

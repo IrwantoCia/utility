@@ -1,145 +1,103 @@
-// Package csv provides the TUI component for CSV viewing and editing.
+// Package csv provides the TUI coordinator component for CSV viewing.
+// It delegates to sub-pages: menu (file selection) and result (filter + table).
 package csv
 
 import (
-	"strings"
-
-	"charm.land/bubbles/v2/help"
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
-	"github.com/IrwantoCia/utility/internal/tui/components/filepicker"
-	"github.com/IrwantoCia/utility/internal/tui/style"
+	"github.com/IrwantoCia/utility/internal/tui/csv/menu"
+	"github.com/IrwantoCia/utility/internal/tui/csv/result"
 )
 
-// OptionType distinguishes input options from action options.
-type OptionType int
+// pageKind tracks which sub-page is active.
+type pageKind int
 
 const (
-	TypeInput OptionType = iota
-	TypeAction
+	pageMenu pageKind = iota
+	pageResult
 )
 
-// Option represents a single configurable action/input in the CSV workflow.
-type Option struct {
-	Label string
-	Value string
-	Type  OptionType
+// Csv coordinates the CSV workflow.
+type Csv struct {
+	currentPage pageKind
+	menuModel   *menu.Menu
+	resultModel *result.Result
+	lastWindow  tea.WindowSizeMsg
 }
 
-type Model struct {
-	options    []Option
-	cursor     int
-	keys       KeyMap
-	helpModel  help.Model
-	picker     *filepicker.FilePicker
-	isInPicker bool
-}
+var _ common.Component = (*Csv)(nil)
 
-var _ common.Component = (*Model)(nil)
-
-func New() *Model {
-	return &Model{
-		options: []Option{
-			{Label: "Select File"},
-			{Label: "Show CSV", Type: TypeAction},
-		},
-		cursor:    0,
-		keys:      DefaultKeyMap,
-		helpModel: help.New(),
-		picker:    filepicker.New(),
+func New() *Csv {
+	return &Csv{
+		currentPage: pageMenu,
+		menuModel:   menu.New(),
 	}
 }
 
-func (m *Model) Init() tea.Cmd { return nil }
-
-func (m *Model) Resize(ws tea.WindowSizeMsg) tea.Cmd {
-	m.helpModel, _ = m.helpModel.Update(ws)
-	if m.picker != nil {
-		return m.picker.Resize(ws)
+func (c *Csv) Init() tea.Cmd {
+	if c.currentPage == pageResult && c.resultModel != nil {
+		return c.resultModel.Init()
 	}
-	return nil
+	return c.menuModel.Init()
 }
 
-func (m *Model) View() string {
-	if m.isInPicker {
-		return m.picker.View()
+func (c *Csv) View() string {
+	if c.currentPage == pageResult && c.resultModel != nil {
+		return c.resultModel.View()
 	}
-
-	var s strings.Builder
-	s.WriteString("CSV\n\n")
-
-	var prevType OptionType
-	for i, opt := range m.options {
-		if i > 0 && opt.Type != prevType {
-			s.WriteString("  ──────────\n")
-		}
-		prevType = opt.Type
-
-		cursor := "  "
-		if i == m.cursor {
-			cursor = "> "
-		}
-
-		display := opt.Label
-		if opt.Value != "" {
-			display = opt.Value
-		}
-
-		if i == m.cursor {
-			s.WriteString(cursor)
-			st := style.Default.Highlighted
-			if opt.Type == TypeAction {
-				st = style.Default.Action
-			}
-			s.WriteString(st.Render(display))
-		} else {
-			s.WriteString(cursor)
-			s.WriteString(display)
-		}
-		s.WriteString("\n")
-	}
-
-	s.WriteString("\n")
-	s.WriteString(m.helpModel.View(m.keys))
-	return s.String()
+	return c.menuModel.View()
 }
 
-func (m *Model) Update(msg tea.Msg) tea.Cmd {
-	if m.isInPicker {
-		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-			if key.Matches(keyMsg, m.keys.Esc) {
-				m.isInPicker = false
+// Update dispatches to the active sub-page, intercepting
+// ShowResultMsg to switch pages and BackToMenuMsg to return to menu.
+func (c *Csv) Update(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case menu.ShowResultMsg:
+		c.currentPage = pageResult
+		c.resultModel = result.New(msg.FilePath)
+		c.resultModel.Resize(c.lastWindow)
+		return c.resultModel.Init()
+	}
+
+	var cmd tea.Cmd
+	switch c.currentPage {
+	case pageMenu:
+		cmd = c.menuModel.Update(msg)
+	case pageResult:
+		if c.resultModel != nil {
+			cmd = c.resultModel.Update(msg)
+		}
+	}
+
+	// Wrap result page cmds to intercept BackToMenuMsg
+	// so Esc returns to CSV menu instead of the main menu.
+	if c.currentPage == pageResult {
+		return func() tea.Msg {
+			if cmd == nil {
 				return nil
 			}
-		}
-
-		cmd := m.picker.Update(msg)
-		if m.picker.SelectedFile != "" {
-			m.options[m.cursor].Value = m.picker.SelectedFile
-			m.isInPicker = false
-		}
-		return cmd
-	}
-
-	m.helpModel, _ = m.helpModel.Update(msg)
-
-	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		switch {
-		case key.Matches(keyMsg, m.keys.Esc):
-			return func() tea.Msg {
-				return common.BackToMenuMsg{}
+			m := cmd()
+			if _, ok := m.(common.BackToMenuMsg); ok {
+				c.currentPage = pageMenu
+				return nil
 			}
-		case key.Matches(keyMsg, m.keys.Up):
-			m.cursor = max(m.cursor-1, 0)
-		case key.Matches(keyMsg, m.keys.Down):
-			m.cursor = min(m.cursor+1, len(m.options)-1)
-		case key.Matches(keyMsg, m.keys.Enter):
-			m.picker.SelectedFile = ""
-			m.isInPicker = true
-			return m.picker.Init()
+			return m
 		}
 	}
 
-	return nil
+	return cmd
+}
+
+func (c *Csv) Resize(ws tea.WindowSizeMsg) tea.Cmd {
+	c.lastWindow = ws
+	var cmds []tea.Cmd
+	if cmd := c.menuModel.Resize(ws); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+	if c.resultModel != nil {
+		if cmd := c.resultModel.Resize(ws); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+	return tea.Batch(cmds...)
 }
