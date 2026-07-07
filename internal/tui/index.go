@@ -47,6 +47,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if comp := m.activeComponent(); comp != nil {
+		// Route WindowSizeMsg to Resize so sub-components can re-layout
+		if ws, ok := msg.(tea.WindowSizeMsg); ok {
+			cmd := comp.Resize(ws)
+			return m, cmd
+		}
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 			switch {
 			case key.Matches(keyMsg, m.keys.Quit):

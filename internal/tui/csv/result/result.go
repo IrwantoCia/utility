@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textinput"
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -24,14 +25,15 @@ type Result struct {
 	filePath string
 	rows     [][]string
 	headers  []string
-	table    *table.Table
+	viewport viewport.Model
+	ready    bool
 	cursor   int
 
-	width, height int
-	err           error
-	keys          KeyMap
-	helpModel     help.Model
-	searchInput   textinput.Model
+	lastWindow  tea.WindowSizeMsg
+	err         error
+	keys        KeyMap
+	helpModel   help.Model
+	searchInput textinput.Model
 }
 
 var _ common.Component = (*Result)(nil)
@@ -58,51 +60,71 @@ func (r *Result) Init() tea.Cmd {
 
 // loadCSV parses the CSV file using the generic parser.
 func (r *Result) loadCSV() tea.Cmd {
-	_, err := csvparser.Parse(r.filePath, func(headers []string, rows [][]string) struct{} {
-		r.headers = headers
-		r.rows = rows
-		return struct{}{}
-	})
-	if err != nil {
-		r.err = err
+	return func() tea.Msg {
+		_, err := csvparser.Parse(r.filePath, func(headers []string, rows [][]string) struct{} {
+			r.headers = headers
+			r.rows = rows
+			return struct{}{}
+		})
+		if err != nil {
+			r.err = err
+			return nil
+		}
+		r.buildContent()
 		return nil
 	}
-
-	r.buildTable()
-	return nil
 }
 
-func (r *Result) buildTable() {
+func (r *Result) buildContent() {
 	if len(r.headers) == 0 {
 		return
 	}
-	r.table = table.New().
+
+	t := table.New().
 		Headers(r.headers...).
 		Rows(r.rows...).
-		Border(lipgloss.NormalBorder()).
+		Border(lipgloss.ThickBorder()).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			if row == r.cursor {
+			if row == 0 {
+				// Header row
+				return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("229")).Background(lipgloss.Color("63"))
+			}
+			// Highlight cursor row (row is 1-indexed: row 1 = first data row)
+			if row-1 == r.cursor {
 				return style.Default.RowHighlighted
+			}
+			// Alternate colors for non-cursor rows
+			if row%2 == 0 {
+				return lipgloss.NewStyle().Background(lipgloss.Color("235"))
 			}
 			return lipgloss.NewStyle()
 		})
-	if r.width > 0 {
-		r.table = r.table.Width(r.width)
-	}
-	// Table height = total minus search(1) + blank(1) + status(1) + blank(1) + help(~2)
-	tableHeight := max(3, r.height-6)
-	r.table = r.table.Height(tableHeight)
+
+	r.viewport.SetContent(t.String())
 }
 
 func (r *Result) Resize(ws tea.WindowSizeMsg) tea.Cmd {
-	r.width = ws.Width
-	r.height = ws.Height
+	r.lastWindow = ws
 	r.helpModel, _ = r.helpModel.Update(ws)
 	r.searchInput.SetWidth(max(20, ws.Width-10))
-	if r.table != nil {
-		tableHeight := max(3, r.height-6) // -6 to account for search input
-		r.table = r.table.Width(ws.Width).Height(tableHeight)
+
+	headerHeight := 3 // "Search: ..." + blank
+	footerHeight := 4 // blank + status + blank + help lines
+
+	if !r.ready {
+		r.viewport = viewport.New(
+			viewport.WithWidth(ws.Width),
+			viewport.WithHeight(ws.Height-headerHeight-footerHeight),
+		)
+		r.ready = true
+	} else {
+		r.viewport.SetWidth(ws.Width)
+		r.viewport.SetHeight(ws.Height - headerHeight - footerHeight)
 	}
+
+	r.buildContent()
+	// Force viewport to re-render at new dimensions
+	r.viewport, _ = r.viewport.Update(ws)
 	return nil
 }
 
@@ -110,7 +132,6 @@ func (r *Result) View() string {
 	if r.err != nil {
 		return fmt.Sprintf("Error: %v\n\nPress Esc to go back", r.err)
 	}
-
 	if len(r.headers) == 0 {
 		return "No data\n\nPress Esc to go back"
 	}
@@ -122,13 +143,13 @@ func (r *Result) View() string {
 	s.WriteString("Search: ")
 	s.WriteString(r.searchInput.View())
 	s.WriteString("\n\n")
-	s.WriteString(r.table.String())
-	s.WriteString("\n")
+	s.WriteString(r.viewport.View())
+	s.WriteString("\n\n")
 	s.WriteString(statusStr)
 	s.WriteString("\n")
 
-	// Pad to fill remaining height before help
-	for i := lipgloss.Height(s.String()); i <= r.height-lipgloss.Height(helpStr); i++ {
+	// Pad to push help to bottom
+	for i := lipgloss.Height(s.String()); i <= r.lastWindow.Height-lipgloss.Height(helpStr); i++ {
 		s.WriteRune('\n')
 	}
 
@@ -150,26 +171,35 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 		return cmd
 	}
 
+	// Intercept keys BEFORE viewport
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 		switch {
 		case key.Matches(keyMsg, r.keys.Esc):
 			return func() tea.Msg {
 				return BackToCsvMenuMsg{}
 			}
-		case key.Matches(keyMsg, r.keys.Up):
-			if len(r.rows) > 0 {
-				r.cursor = (r.cursor - 1 + len(r.rows)) % len(r.rows)
-				r.buildTable()
-			}
-		case key.Matches(keyMsg, r.keys.Down):
-			if len(r.rows) > 0 {
-				r.cursor = (r.cursor + 1) % len(r.rows)
-				r.buildTable()
-			}
 		case key.Matches(keyMsg, r.keys.Enter):
 			r.searchInput.Focus()
 			return nil
+		case key.Matches(keyMsg, r.keys.Up):
+			if r.cursor > 0 {
+				r.cursor--
+				r.buildContent()
+				r.viewport.ScrollUp(1)
+			}
+			return nil
+		case key.Matches(keyMsg, r.keys.Down):
+			if r.cursor < len(r.rows)-1 {
+				r.cursor++
+				r.buildContent()
+				r.viewport.ScrollDown(1)
+			}
+			return nil
 		}
 	}
-	return nil
+
+	// Delegate everything else (Left/Right/PgUp/PgDn/Home/End/mouse) to viewport
+	var cmd tea.Cmd
+	r.viewport, cmd = r.viewport.Update(msg)
+	return cmd
 }

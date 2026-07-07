@@ -46,7 +46,7 @@ type Menu struct {
 	picker        *filepicker.FilePicker
 	pickerOpen    bool
 	selectedFile  string
-	width, height int
+	lastWindow tea.WindowSizeMsg
 }
 
 var _ common.Component = (*Menu)(nil)
@@ -66,8 +66,7 @@ func New() *Menu {
 func (m *Menu) Init() tea.Cmd { return nil }
 
 func (m *Menu) Resize(ws tea.WindowSizeMsg) tea.Cmd {
-	m.width = ws.Width
-	m.height = ws.Height
+	m.lastWindow = ws
 	m.helpModel, _ = m.helpModel.Update(ws)
 	return m.picker.Resize(ws)
 }
@@ -112,7 +111,7 @@ func (m *Menu) View() string {
 	s.WriteString(content.String())
 
 	// Pad to fill remaining height before help
-	for i := lipgloss.Height(s.String()); i <= m.height-lipgloss.Height(helpStr); i++ {
+	for i := lipgloss.Height(s.String()); i <= m.lastWindow.Height-lipgloss.Height(helpStr); i++ {
 		s.WriteRune('\n')
 	}
 
