@@ -182,18 +182,24 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 			r.searchInput.Focus()
 			return nil
 		case key.Matches(keyMsg, r.keys.Up):
-			if r.cursor > 0 {
-				r.cursor--
-				r.buildContent()
+			r.cursor--
+			if r.cursor < 0 {
+				r.cursor = len(r.rows) - 1
+				r.viewport.GotoBottom()
+			} else {
 				r.viewport.ScrollUp(1)
 			}
+			r.buildContent()
 			return nil
 		case key.Matches(keyMsg, r.keys.Down):
-			if r.cursor < len(r.rows)-1 {
-				r.cursor++
-				r.buildContent()
+			r.cursor++
+			if r.cursor >= len(r.rows) {
+				r.cursor = 0
+				r.viewport.GotoTop()
+			} else {
 				r.viewport.ScrollDown(1)
 			}
+			r.buildContent()
 			return nil
 		}
 	}
