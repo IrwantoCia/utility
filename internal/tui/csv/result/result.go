@@ -24,10 +24,13 @@ type BackToCsvMenuMsg struct{}
 type Result struct {
 	filePath string
 	rows     [][]string
+	allRows  [][]string // unfiltered original data
 	headers  []string
 	viewport viewport.Model
 	ready    bool
 	cursor   int
+
+	isFiltered bool
 
 	lastWindow  tea.WindowSizeMsg
 	err         error
@@ -64,6 +67,7 @@ func (r *Result) loadCSV() tea.Cmd {
 		_, err := csvparser.Parse(r.filePath, func(headers []string, rows [][]string) struct{} {
 			r.headers = headers
 			r.rows = rows
+			r.allRows = rows
 			return struct{}{}
 		})
 		if err != nil {
@@ -103,6 +107,47 @@ func (r *Result) buildContent() {
 	r.viewport.SetContent(t.String())
 }
 
+// applyFilter filters r.allRows using token-based AND matching across all columns.
+// Empty query restores all rows.
+func (r *Result) applyFilter() {
+	query := strings.TrimSpace(r.searchInput.Value())
+	if query == "" {
+		r.rows = r.allRows
+		r.isFiltered = false
+	} else {
+		tokens := strings.Fields(strings.ToLower(query))
+		filtered := make([][]string, 0, len(r.allRows))
+		for _, row := range r.allRows {
+			if r.rowMatchesTokens(row, tokens) {
+				filtered = append(filtered, row)
+			}
+		}
+		r.rows = filtered
+		r.isFiltered = true
+	}
+	r.cursor = 0
+	r.buildContent()
+	r.viewport.GotoTop()
+}
+
+// rowMatchesTokens returns true if every token appears as a case-insensitive
+// substring in at least one column of the row.
+func (r *Result) rowMatchesTokens(row []string, tokens []string) bool {
+	for _, token := range tokens {
+		found := false
+		for _, cell := range row {
+			if strings.Contains(strings.ToLower(cell), token) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *Result) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	r.lastWindow = ws
 	r.helpModel, _ = r.helpModel.Update(ws)
@@ -137,7 +182,12 @@ func (r *Result) View() string {
 	}
 
 	helpStr := r.helpModel.View(r.keys)
-	statusStr := fmt.Sprintf("Showing %d rows", len(r.rows))
+	var statusStr string
+	if r.isFiltered {
+		statusStr = fmt.Sprintf("Showing %d of %d rows (filtered)", len(r.rows), len(r.allRows))
+	} else {
+		statusStr = fmt.Sprintf("Showing %d rows", len(r.rows))
+	}
 
 	var s strings.Builder
 	s.WriteString("Search: ")
@@ -163,6 +213,11 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 			if key.Matches(keyMsg, r.keys.Esc) {
 				r.searchInput.Blur()
+				return nil
+			}
+			if key.Matches(keyMsg, r.keys.Enter) {
+				r.searchInput.Blur()
+				r.applyFilter()
 				return nil
 			}
 			if key.Matches(keyMsg, r.keys.Tab) {
