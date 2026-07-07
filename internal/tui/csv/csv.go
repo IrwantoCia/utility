@@ -94,7 +94,8 @@ func (m *Model) View() string {
 			}
 			s.WriteString(st.Render(display))
 		} else {
-			s.WriteString(cursor + display)
+			s.WriteString(cursor)
+			s.WriteString(display)
 		}
 		s.WriteString("\n")
 	}
