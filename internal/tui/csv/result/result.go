@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"charm.land/lipgloss/v2/table"
@@ -122,17 +123,17 @@ func (r *Result) View() string {
 
 func (r *Result) Update(msg tea.Msg) tea.Cmd {
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		switch keyMsg.Key().Code {
-		case tea.KeyEsc:
+		switch {
+		case key.Matches(keyMsg, r.keys.Esc):
 			return func() tea.Msg {
 				return common.BackToMenuMsg{}
 			}
-		case tea.KeyUp:
+		case key.Matches(keyMsg, r.keys.Up):
 			if r.cursor > 0 {
 				r.cursor--
 				r.buildTable()
 			}
-		case tea.KeyDown:
+		case key.Matches(keyMsg, r.keys.Down):
 			if r.cursor < len(r.rows)-1 {
 				r.cursor++
 				r.buildTable()
