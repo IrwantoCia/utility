@@ -1,3 +1,5 @@
+// Package menu provides the file-selection TUI for the CSV viewer.
+// It renders a cursor-driven menu and an optional file picker.
 package menu
 
 import (

@@ -1,3 +1,5 @@
+// Package result provides the table viewer TUI for CSV files.
+// It renders a search input, data table, and status bar.
 package result
 
 import (
