@@ -215,11 +215,6 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 				r.searchInput.Blur()
 				return nil
 			}
-			if key.Matches(keyMsg, r.keys.Enter) {
-				r.searchInput.Blur()
-				r.applyFilter()
-				return nil
-			}
 			if key.Matches(keyMsg, r.keys.Tab) {
 				r.searchInput.Blur()
 				return nil
@@ -227,6 +222,7 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 		}
 		var cmd tea.Cmd
 		r.searchInput, cmd = r.searchInput.Update(msg)
+		r.applyFilter()
 		return cmd
 	}
 
