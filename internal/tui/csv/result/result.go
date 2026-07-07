@@ -165,6 +165,10 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 				r.searchInput.Blur()
 				return nil
 			}
+			if key.Matches(keyMsg, r.keys.Tab) {
+				r.searchInput.Blur()
+				return nil
+			}
 		}
 		var cmd tea.Cmd
 		r.searchInput, cmd = r.searchInput.Update(msg)
@@ -178,7 +182,7 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 			return func() tea.Msg {
 				return BackToCsvMenuMsg{}
 			}
-		case key.Matches(keyMsg, r.keys.Enter):
+		case key.Matches(keyMsg, r.keys.Tab):
 			r.searchInput.Focus()
 			return nil
 		case key.Matches(keyMsg, r.keys.Up):
