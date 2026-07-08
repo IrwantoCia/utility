@@ -23,6 +23,9 @@ import (
 // BackToCsvMenuMsg tells the coordinator to switch from result back to the CSV menu.
 type BackToCsvMenuMsg struct{}
 
+// csvLoadedMsg is sent after the CSV file has been parsed and the viewport updated.
+type csvLoadedMsg struct{}
+
 type Result struct {
 	filePath       string
 	rows           [][]string
@@ -58,10 +61,7 @@ func New(filePath string) *Result {
 }
 
 func (r *Result) Init() tea.Cmd {
-	return tea.Batch(
-		r.loadCSV(),
-		r.searchInput.Focus(),
-	)
+	return r.loadCSV()
 }
 
 // loadCSV parses the CSV file using the generic parser.
@@ -75,10 +75,10 @@ func (r *Result) loadCSV() tea.Cmd {
 		})
 		if err != nil {
 			r.err = err
-			return nil
+			return csvLoadedMsg{}
 		}
 		r.buildContent()
-		return nil
+		return csvLoadedMsg{}
 	}
 }
 
@@ -310,6 +310,11 @@ func (r *Result) View() string {
 }
 
 func (r *Result) Update(msg tea.Msg) tea.Cmd {
+	// Re-render on data loaded
+	if _, ok := msg.(csvLoadedMsg); ok {
+		return nil
+	}
+
 	// If search input is focused, delegate to it
 	if r.searchInput.Focused() {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
