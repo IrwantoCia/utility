@@ -34,19 +34,21 @@ const (
 )
 
 type Option struct {
-	Label string
-	Type  OptionType
+	Label       string
+	Description string
+	Icon        string
+	Type        OptionType
 }
 
 type Menu struct {
-	options       []Option
-	cursor        cursorPos
-	keys          KeyMap
-	helpModel     help.Model
-	picker        *filepicker.FilePicker
-	pickerOpen    bool
-	selectedFile  string
-	lastWindow tea.WindowSizeMsg
+	options      []Option
+	cursor       cursorPos
+	keys         KeyMap
+	helpModel    help.Model
+	picker       *filepicker.FilePicker
+	pickerOpen   bool
+	selectedFile string
+	lastWindow   tea.WindowSizeMsg
 }
 
 var _ common.Component = (*Menu)(nil)
@@ -54,8 +56,18 @@ var _ common.Component = (*Menu)(nil)
 func New() *Menu {
 	return &Menu{
 		options: []Option{
-			{Label: "Select File", Type: TypeInput},
-			{Label: "Show CSV", Type: TypeAction},
+			{
+				Label:       "Select File",
+				Description: "Choose a CSV file to view",
+				Icon:        "📂",
+				Type:        TypeInput,
+			},
+			{
+				Label:       "Show CSV",
+				Description: "Display the data table",
+				Icon:        "📊",
+				Type:        TypeAction,
+			},
 		},
 		keys:      DefaultKeyMap,
 		helpModel: help.New(),
@@ -77,44 +89,88 @@ func (m *Menu) View() string {
 		return m.picker.View()
 	}
 
-	var content strings.Builder
-	content.WriteString("CSV\n\n")
-
+	var cards []string
 	for i, opt := range m.options {
-		cursor := "  "
-		if cursorPos(i) == m.cursor {
-			cursor = "> "
-		}
+		isSelected := cursorPos(i) == m.cursor
 
-		display := opt.Label
-		if opt.Label == "Select File" && m.selectedFile != "" {
-			display = "Select File (" + m.selectedFile + ")"
-		}
-
-		if cursorPos(i) == m.cursor {
-			content.WriteString(cursor)
-			st := style.Default.Highlighted
+		// Icon styling
+		iconStyle := style.Default.CardIcon
+		if isSelected {
 			if opt.Type == TypeAction {
-				st = style.Default.Action
+				iconStyle = style.Default.CardIconAction
+			} else {
+				iconStyle = style.Default.CardIconInput
 			}
-			content.WriteString(st.Render(display))
-		} else {
-			content.WriteString(cursor)
-			content.WriteString(display)
 		}
-		content.WriteString("\n")
+
+		// Title styling
+		titleStyle := style.Default.CardTitle
+		if isSelected {
+			titleStyle = style.Default.CardTitleSelected
+		}
+
+		// Description styling
+		descStyle := style.Default.CardDesc
+
+		// Build card content
+		titleLine := lipgloss.JoinHorizontal(lipgloss.Left,
+			iconStyle.Render(opt.Icon+"  "),
+			titleStyle.Render(opt.Label),
+		)
+
+		if opt.Label == "Select File" && m.selectedFile != "" {
+			display := "Select File (" + m.selectedFile + ")"
+			titleLine = lipgloss.JoinHorizontal(lipgloss.Left,
+				iconStyle.Render(opt.Icon+"  "),
+				titleStyle.Render(display),
+			)
+		}
+
+		descLine := "   " + descStyle.Render(opt.Description)
+
+		cardContent := lipgloss.JoinVertical(lipgloss.Left,
+			titleLine,
+			descLine,
+		)
+
+		// Card border styling
+		borderColor := lipgloss.Color("240")
+		if isSelected {
+			if opt.Type == TypeAction {
+				borderColor = lipgloss.Color("46") // green
+			} else {
+				borderColor = lipgloss.Color("75") // blue
+			}
+		}
+
+		cardWidth := max(40, m.lastWindow.Width*60/100)
+		cardWidth = min(cardWidth, 60)
+
+		card := style.Default.CardContainer.
+			BorderForeground(borderColor).
+			Width(cardWidth).
+			Render(cardContent)
+
+		cards = append(cards, card)
 	}
+
+	cardStack := lipgloss.JoinVertical(lipgloss.Left, cards...)
 
 	helpStr := m.helpModel.View(m.keys)
+	helpHeight := lipgloss.Height(helpStr)
+
+	// Center cards in available space (minus help)
+	availableHeight := m.lastWindow.Height - helpHeight
+	centered := lipgloss.Place(
+		m.lastWindow.Width,
+		availableHeight,
+		lipgloss.Center,
+		lipgloss.Center,
+		cardStack,
+	)
 
 	var s strings.Builder
-	s.WriteString(content.String())
-
-	// Pad to fill remaining height before help
-	for i := lipgloss.Height(s.String()); i <= m.lastWindow.Height-lipgloss.Height(helpStr); i++ {
-		s.WriteRune('\n')
-	}
-
+	s.WriteString(centered)
 	s.WriteString(helpStr)
 	return s.String()
 }

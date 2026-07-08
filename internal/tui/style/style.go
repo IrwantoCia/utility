@@ -17,6 +17,13 @@ type Styles struct {
 	MenuTitle        lipgloss.Style
 	MenuHint         lipgloss.Style
 	MenuContainer    lipgloss.Style
+	CardIcon          lipgloss.Style
+	CardIconInput     lipgloss.Style
+	CardIconAction    lipgloss.Style
+	CardTitle         lipgloss.Style
+	CardTitleSelected lipgloss.Style
+	CardDesc          lipgloss.Style
+	CardContainer     lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -65,6 +72,25 @@ func DefaultStyles() Styles {
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("63")).
 			Padding(1, 3),
+		CardIcon: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+		CardIconInput: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("75")).
+			Bold(true),
+		CardIconAction: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("46")).
+			Bold(true),
+		CardTitle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+		CardTitleSelected: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("255")).
+			Bold(true),
+		CardDesc: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Italic(true),
+		CardContainer: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			Padding(0, 1),
 	}
 }
 
