@@ -27,8 +27,9 @@ type Result struct {
 	allRows  [][]string // unfiltered original data
 	headers  []string
 	viewport viewport.Model
-	ready    bool
-	cursor   int
+	ready           bool
+	cursor          int
+	viewportHeight  int
 
 	isFiltered bool
 
@@ -161,10 +162,12 @@ func (r *Result) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 			viewport.WithWidth(ws.Width),
 			viewport.WithHeight(ws.Height-headerHeight-footerHeight),
 		)
+		r.viewportHeight = ws.Height - headerHeight - footerHeight
 		r.ready = true
 	} else {
 		r.viewport.SetWidth(ws.Width)
 		r.viewport.SetHeight(ws.Height - headerHeight - footerHeight)
+		r.viewportHeight = ws.Height - headerHeight - footerHeight
 	}
 
 	r.buildContent()
@@ -253,6 +256,28 @@ func (r *Result) Update(msg tea.Msg) tea.Cmd {
 				r.viewport.GotoTop()
 			} else {
 				r.viewport.ScrollDown(1)
+			}
+			r.buildContent()
+			return nil
+		case key.Matches(keyMsg, r.keys.HalfUp):
+			half := max(1, r.viewportHeight)
+			r.cursor -= half
+			if r.cursor < 0 {
+				r.cursor = len(r.rows) - 1
+				r.viewport.GotoBottom()
+			} else {
+				r.viewport.ScrollUp(half)
+			}
+			r.buildContent()
+			return nil
+		case key.Matches(keyMsg, r.keys.HalfDown):
+			half := max(1, r.viewportHeight)
+			r.cursor += half
+			if r.cursor >= len(r.rows) {
+				r.cursor = 0
+				r.viewport.GotoTop()
+			} else {
+				r.viewport.ScrollDown(half)
 			}
 			r.buildContent()
 			return nil

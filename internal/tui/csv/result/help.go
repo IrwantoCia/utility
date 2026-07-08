@@ -7,25 +7,29 @@ import (
 )
 
 type KeyMap struct {
-	Up    key.Binding
-	Down  key.Binding
-	Left  key.Binding
-	Right key.Binding
-	Tab   key.Binding
-	Esc   key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	HalfUp   key.Binding
+	HalfDown key.Binding
+	Left     key.Binding
+	Right    key.Binding
+	Tab      key.Binding
+	Esc      key.Binding
 }
 
 var DefaultKeyMap = KeyMap{
-	Up:    key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("k/↑", "up")),
-	Down:  key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/↓", "down")),
-	Left:  key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/←", "left")),
-	Right: key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l/→", "right")),
-	Tab:   key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "toggle")),
-	Esc:   key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
+	Up:       key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("k/↑", "up")),
+	Down:     key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/↓", "down")),
+	HalfUp:   key.NewBinding(key.WithKeys("ctrl+u", "u"), key.WithHelp("ctrl+u/u", "½↑")),
+	HalfDown: key.NewBinding(key.WithKeys("ctrl+d", "d"), key.WithHelp("ctrl+d/d", "½↓")),
+	Left:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/←", "left")),
+	Right:    key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l/→", "right")),
+	Tab:      key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "toggle")),
+	Esc:      key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.Up, km.Down, km.Left, km.Right, km.Tab, km.Esc}
+	return []key.Binding{km.Up, km.Down, km.HalfUp, km.HalfDown, km.Left, km.Right, km.Tab, km.Esc}
 }
 
 func (km KeyMap) FullHelp() [][]key.Binding {
