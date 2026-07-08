@@ -1,6 +1,15 @@
 // Package s3 provides the TUI coordinator component for the S3 workflow.
 // It delegates to sub-pages: menu (Upload/Browse selection), upload (placeholder),
 // and browse (2-panel buckets + objects browser).
+//
+// Routes:
+//   - menu   → upload (Enter on "Upload")
+//   - menu   → browse (Enter on "Browse")
+//   - upload → menu   (Esc → BackToS3MenuMsg)
+//   - browse → menu   (Esc → BackToS3MenuMsg)
+//
+// The s3 coordinator owns the menu, upload, and browse pages as peer children.
+// It handles navigation between them via custom messages.
 package s3
 
 import (

@@ -1,5 +1,12 @@
 // Package csv provides the TUI coordinator component for CSV viewing.
 // It delegates to sub-pages: menu (file selection) and result (filter + table).
+//
+// Routes:
+//   - menu   → result (Enter on "Show CSV")
+//   - result → menu   (Esc → BackToCsvMenuMsg)
+//
+// The csv coordinator owns the menu and result pages as peer children.
+// It handles navigation between them via custom messages.
 package csv
 
 import (
