@@ -17,6 +17,14 @@ import (
 
 type BackToS3MenuMsg struct{}
 
+// statusType categorises the status message for styling.
+type statusType int
+
+const (
+	statusInfo  statusType = iota
+	statusError
+)
+
 // bucketsLoadedMsg carries the result of loading bucket names from S3.
 type bucketsLoadedMsg struct {
 	names []string
@@ -71,7 +79,8 @@ type Upload struct {
 	selectedFile string
 	bucket       string
 	buckets      []string
-	statusMsg    string   // one-shot message shown below cards
+	statusMsg    string     // one-shot message shown below cards
+	statusKind   statusType
 
 	client      *s3helper.S3 // S3 client (nil if not configured)
 	clientError error        // client init error
@@ -218,10 +227,11 @@ func (u *Upload) View() string {
 	// Status message box
 	msgBox := ""
 	if u.statusMsg != "" {
-		boxContent := style.Default.StatusText.Render(u.statusMsg)
-		if strings.HasPrefix(u.statusMsg, "Failed:") {
-			boxContent = style.Default.StatusError.Render(u.statusMsg)
+		s := style.Default.StatusText
+		if u.statusKind == statusError {
+			s = style.Default.StatusError
 		}
+		boxContent := s.Render(u.statusMsg)
 		msgBox = style.Default.StatusBox.
 			Width(cardWidth).
 			Render(boxContent)
@@ -311,8 +321,10 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 			return u.listPicker.Init()
 		}
 		if msg.err != nil {
+			u.statusKind = statusError
 			u.statusMsg = "Failed: " + msg.err.Error()
 		} else {
+			u.statusKind = statusError
 			u.statusMsg = "No buckets found"
 		}
 		return nil
@@ -340,6 +352,7 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 			return u.picker.Init()
 		case cursorBucket:
 			if u.client == nil {
+				u.statusKind = statusError
 				u.statusMsg = "No S3 client configured"
 				return nil
 			}
@@ -350,12 +363,22 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 				u.listOpen = true
 				return u.listPicker.Init()
 			}
+			u.statusKind = statusInfo
 			u.statusMsg = "Loading buckets..."
 			return loadBuckets(u.client)
 		case cursorUpload:
-			return func() tea.Msg {
-				return BackToS3MenuMsg{}
+			if u.selectedFile == "" {
+				u.statusKind = statusError
+				u.statusMsg = "No file selected"
+				return nil
 			}
+			if u.bucket == "" {
+				u.statusKind = statusError
+				u.statusMsg = "No bucket selected"
+				return nil
+			}
+			// TODO: actual upload
+			return nil
 		}
 	}
 
