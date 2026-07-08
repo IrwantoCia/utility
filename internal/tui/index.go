@@ -5,15 +5,16 @@ package tui
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/csv"
-	"github.com/IrwantoCia/utility/internal/tui/transcribe"
 	"github.com/IrwantoCia/utility/internal/tui/s3"
+	"github.com/IrwantoCia/utility/internal/tui/style"
+	"github.com/IrwantoCia/utility/internal/tui/transcribe"
 )
 
 type menu struct {
@@ -22,11 +23,12 @@ type menu struct {
 }
 
 type model struct {
-	menus  []menu
-	cursor int
-	active int // -1 = menu, >= 0 = active page index
-	help   help.Model
-	keys   KeyMap
+	menus      []menu
+	cursor     int
+	active     int // -1 = menu, >= 0 = active page index
+	lastWindow tea.WindowSizeMsg
+	help       help.Model
+	keys       KeyMap
 }
 
 func (m model) activeComponent() common.Component {
@@ -64,6 +66,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
+		m.lastWindow = msg
 		var cmds []tea.Cmd
 		for _, menu := range m.menus {
 			cmd := menu.component.Resize(msg)
@@ -111,18 +114,36 @@ func (m model) View() tea.View {
 }
 
 func view(m model) string {
-	var sb strings.Builder
-	sb.WriteString("Menu\n")
+	banner := style.Default.MenuTitle.Render(Banner)
 
+	var items []string
 	for i, v := range m.menus {
 		if m.cursor == i {
-			sb.WriteString("> ")
+			items = append(items, style.Default.MenuItemSelected.Render("▸ "+v.name))
+		} else {
+			items = append(items, style.Default.MenuItem.Render("  "+v.name))
 		}
-		sb.WriteString(v.name)
-		sb.WriteString("\n")
 	}
 
-	return sb.String()
+	menuContent := lipgloss.JoinVertical(lipgloss.Left, items...)
+	menuBox := style.Default.MenuContainer.Render(menuContent)
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		banner,
+		"",
+		menuBox,
+	)
+
+	if m.lastWindow.Width > 0 {
+		content = lipgloss.Place(
+			m.lastWindow.Width,
+			m.lastWindow.Height,
+			lipgloss.Center, lipgloss.Center,
+			content,
+		)
+	}
+
+	return content
 }
 
 func Run() {

@@ -7,11 +7,16 @@ import (
 
 // Styles holds all reusable styles for the TUI.
 type Styles struct {
-	Highlighted    lipgloss.Style
-	Action         lipgloss.Style
-	RowHighlighted lipgloss.Style
-	TableHeader    lipgloss.Style
-	TableRowAlt    lipgloss.Style
+	Highlighted      lipgloss.Style
+	Action           lipgloss.Style
+	RowHighlighted   lipgloss.Style
+	TableHeader      lipgloss.Style
+	TableRowAlt      lipgloss.Style
+	MenuItem         lipgloss.Style
+	MenuItemSelected lipgloss.Style
+	MenuTitle        lipgloss.Style
+	MenuHint         lipgloss.Style
+	MenuContainer    lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -38,6 +43,28 @@ func DefaultStyles() Styles {
 			Background(lipgloss.Color("63")),
 		TableRowAlt: lipgloss.NewStyle().
 			Background(lipgloss.Color("235")),
+		MenuItem: lipgloss.NewStyle().
+			PaddingLeft(2).
+			PaddingRight(2).
+			Foreground(lipgloss.Color("240")),
+		MenuItemSelected: lipgloss.NewStyle().
+			PaddingLeft(2).
+			PaddingRight(2).
+			Bold(true).
+			Background(lipgloss.Color("62")).
+			Foreground(lipgloss.Color("255")),
+		MenuTitle: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("69")).
+			AlignHorizontal(lipgloss.Center),
+		MenuHint: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			AlignHorizontal(lipgloss.Center).
+			Italic(true),
+		MenuContainer: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("63")).
+			Padding(1, 3),
 	}
 }
 
