@@ -9,11 +9,17 @@
 //   - browse → menu   (Esc → BackToS3MenuMsg)
 //
 // The s3 coordinator owns the menu, upload, and browse pages as peer children.
-// It handles navigation between them via custom messages.
+// It handles navigation between them via custom messages. It is also
+// responsible for loading the .env file (via godotenv) and creating the
+// S3 client, which is passed down to child pages.
 package s3
 
 import (
+	"fmt"
+
 	tea "charm.land/bubbletea/v2"
+	"github.com/joho/godotenv"
+	s3helper "github.com/IrwantoCia/utility/internal/helper/s3"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse"
 	"github.com/IrwantoCia/utility/internal/tui/s3/menu"
@@ -27,7 +33,10 @@ type S3 struct {
 	menuModel   *menu.Menu
 	uploadModel *upload.Upload
 	browseModel *browse.Browse
-	activePage  string // "" = menu, "upload", "browse"
+	activePage  string
+
+	client  *s3helper.S3 // cached S3 client
+	envFile string       // env file used for last client init
 }
 
 var _ common.Component = (*S3)(nil)
@@ -75,15 +84,25 @@ func (c *S3) View() string {
 // custom messages to switch between pages.
 func (c *S3) Update(msg tea.Msg) tea.Cmd {
 	// Intercept page-switching messages regardless of current page.
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case menu.ShowUploadMsg:
+		client, err := c.getClient(msg.EnvFile)
 		c.activePage = "upload"
-		c.uploadModel = upload.New()
+		if err != nil {
+			c.uploadModel = upload.New(nil, err)
+		} else {
+			c.uploadModel = upload.New(client, nil)
+		}
 		c.uploadModel.Resize(c.lastWindow)
 		return c.uploadModel.Init()
 	case menu.ShowBrowseMsg:
+		client, err := c.getClient(msg.EnvFile)
 		c.activePage = "browse"
-		c.browseModel = browse.New()
+		if err != nil {
+			c.browseModel = browse.New(nil, err)
+		} else {
+			c.browseModel = browse.New(client, nil)
+		}
 		c.browseModel.Resize(c.lastWindow)
 		return c.browseModel.Init()
 	case upload.BackToS3MenuMsg:
@@ -103,4 +122,35 @@ func (c *S3) Update(msg tea.Msg) tea.Cmd {
 	default:
 		return c.menuModel.Update(msg)
 	}
+}
+
+// getClient returns a cached S3 client, creating one if the envFile has
+// changed. When envFile is empty, returns nil with no error (caller can
+// check for nil client).
+func (c *S3) getClient(envFile string) (*s3helper.S3, error) {
+	if envFile == "" {
+		return nil, nil
+	}
+	if c.client != nil && c.envFile == envFile {
+		return c.client, nil
+	}
+
+	// Load .env into process environment
+	if err := godotenv.Load(envFile); err != nil {
+		c.client = nil
+		c.envFile = ""
+		return nil, fmt.Errorf("loading %s: %w", envFile, err)
+	}
+
+	// Create client with env-var-based config
+	client, err := s3helper.New(s3helper.Config{})
+	if err != nil {
+		c.client = nil
+		c.envFile = ""
+		return nil, fmt.Errorf("creating client: %w", err)
+	}
+
+	c.client = client
+	c.envFile = envFile
+	return c.client, nil
 }

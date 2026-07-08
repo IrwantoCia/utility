@@ -2,6 +2,7 @@
 package menu
 
 import (
+	"os"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -14,10 +15,10 @@ import (
 )
 
 // ShowUploadMsg tells the S3 coordinator to navigate to the upload page.
-type ShowUploadMsg struct{}
+type ShowUploadMsg struct{ EnvFile string }
 
 // ShowBrowseMsg tells the S3 coordinator to navigate to the browse page.
-type ShowBrowseMsg struct{}
+type ShowBrowseMsg struct{ EnvFile string }
 
 // OptionType categorises a menu option.
 type OptionType int
@@ -51,7 +52,7 @@ var _ common.Component = (*Menu)(nil)
 
 // New creates a new S3 sub-menu with card-style options.
 func New() *Menu {
-	return &Menu{
+	m := &Menu{
 		options: []Option{
 			{Label: "Upload", Description: "Upload file to S3 bucket", Icon: "📤", Type: TypeAction},
 			{Label: "Browse", Description: "Explore S3 buckets and objects", Icon: "📁", Type: TypeAction},
@@ -61,6 +62,13 @@ func New() *Menu {
 		helpModel: help.New(),
 		picker:    filepicker.New(),
 	}
+
+	// Auto-detect .env in current directory
+	if _, err := os.Stat(".env"); err == nil {
+		m.envFile = ".env"
+	}
+
+	return m
 }
 
 // Init is a no-op for the static menu.
@@ -225,9 +233,9 @@ func (m *Menu) Update(msg tea.Msg) tea.Cmd {
 	case key.Matches(keyMsg, m.keys.Enter):
 		switch m.cursor {
 		case 0:
-			return func() tea.Msg { return ShowUploadMsg{} }
+			return func() tea.Msg { return ShowUploadMsg{EnvFile: m.envFile} }
 		case 1:
-			return func() tea.Msg { return ShowBrowseMsg{} }
+			return func() tea.Msg { return ShowBrowseMsg{EnvFile: m.envFile} }
 		case 2:
 			m.picker.SelectedFile = ""
 			m.pickerOpen = true

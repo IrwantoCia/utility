@@ -7,6 +7,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	s3helper "github.com/IrwantoCia/utility/internal/helper/s3"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/components/filepicker"
 	"github.com/IrwantoCia/utility/internal/tui/style"
@@ -47,22 +48,27 @@ type Upload struct {
 	selectedFile string
 	bucket       string
 	buckets      []string
+
+	client      *s3helper.S3 // S3 client (nil if not configured)
+	clientError error        // client init error
 }
 
 var _ common.Component = (*Upload)(nil)
 
-func New() *Upload {
+func New(client *s3helper.S3, clientErr error) *Upload {
 	return &Upload{
 		options: []Option{
 			{Label: "Select File", Description: "Choose a file to upload", Icon: "📂", Type: TypeInput},
 			{Label: "Bucket", Description: "Select destination bucket", Icon: "🪣", Type: TypeInput},
 			{Label: "Upload", Description: "Start upload to S3", Icon: "⬆ ", Type: TypeAction},
 		},
-		keys:      DefaultKeyMap,
-		helpModel: help.New(),
-		picker:    filepicker.New(),
-		bucket:    "prod",
-		buckets:   []string{"prod", "staging", "dev"},
+		keys:        DefaultKeyMap,
+		helpModel:   help.New(),
+		picker:      filepicker.New(),
+		bucket:      "prod",
+		buckets:     []string{"prod", "staging", "dev"},
+		client:      client,
+		clientError: clientErr,
 	}
 }
 
@@ -77,6 +83,17 @@ func (u *Upload) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 func (u *Upload) View() string {
 	if u.pickerOpen {
 		return u.picker.View()
+	}
+
+	if u.client == nil {
+		if u.clientError != nil {
+			errLine := style.Default.Highlighted.Copy().Background(lipgloss.Color("1")).Render("Error: " + u.clientError.Error())
+			centered := lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(u.lastWindow.Width).Render(errLine)
+			return centered + "\n\nPress Esc to go back"
+		}
+		hint := style.Default.CardDesc.Render("No .env file configured. Go back to S3 menu and select Set .env.")
+		centered := lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(u.lastWindow.Width).Render(hint)
+		return centered + "\n\nPress Esc to go back"
 	}
 
 	w, h := u.lastWindow.Width, u.lastWindow.Height

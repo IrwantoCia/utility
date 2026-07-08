@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	s3helper "github.com/IrwantoCia/utility/internal/helper/s3"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse/buckets"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse/objects"
@@ -28,20 +29,25 @@ type Browse struct {
 	helpModel  help.Model
 
 	// Computed layout dimensions.
-	leftW, rightW int
+	leftW, rightW            int
 	headerH, footerH, panelH int
+
+	client      *s3helper.S3 // S3 client (nil if not configured)
+	clientError error        // client init error
 }
 
 var _ common.Component = (*Browse)(nil)
 
 // New creates a new Browse coordinator.
-func New() *Browse {
+func New(client *s3helper.S3, clientErr error) *Browse {
 	return &Browse{
-		buckets:   buckets.New(),
-		objects:   objects.New(),
-		focus:     0,
-		keys:      DefaultKeyMap,
-		helpModel: help.New(),
+		buckets:     buckets.New(),
+		objects:     objects.New(),
+		focus:       0,
+		keys:        DefaultKeyMap,
+		helpModel:   help.New(),
+		client:      client,
+		clientError: clientErr,
 	}
 }
 
@@ -79,6 +85,17 @@ func (b *Browse) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 
 // View renders the header, two bordered panels, and footer.
 func (b *Browse) View() string {
+	if b.client == nil {
+		msg := "No .env file configured."
+		if b.clientError != nil {
+			msg = "Error: " + b.clientError.Error()
+		}
+		return lipgloss.NewStyle().
+			Width(b.lastWindow.Width).Height(b.lastWindow.Height).
+			AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center).
+			Render(msg + "\n\nPress Esc to go back")
+	}
+
 	header := b.renderHeader()
 	middle := b.renderPanels()
 	footer := b.renderFooter()
