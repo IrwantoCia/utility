@@ -35,6 +35,7 @@ type Styles struct {
 	StatusBox   lipgloss.Style
 	StatusText  lipgloss.Style
 	StatusError lipgloss.Style
+	StatusSuccess lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -132,6 +133,9 @@ func DefaultStyles() Styles {
 			Foreground(lipgloss.Color("252")),
 		StatusError: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("196")).
+			Bold(true),
+		StatusSuccess: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("46")).
 			Bold(true),
 	}
 }

@@ -12,18 +12,11 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/components/filepicker"
 	"github.com/IrwantoCia/utility/internal/tui/components/listpicker"
+	"github.com/IrwantoCia/utility/internal/tui/components/statusbar"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
 type BackToS3MenuMsg struct{}
-
-// statusType categorises the status message for styling.
-type statusType int
-
-const (
-	statusInfo  statusType = iota
-	statusError
-)
 
 // bucketsLoadedMsg carries the result of loading bucket names from S3.
 type bucketsLoadedMsg struct {
@@ -79,8 +72,7 @@ type Upload struct {
 	selectedFile string
 	bucket       string
 	buckets      []string
-	statusMsg    string     // one-shot message shown below cards
-	statusKind   statusType
+	status       *statusbar.StatusBar
 
 	client      *s3helper.S3 // S3 client (nil if not configured)
 	clientError error        // client init error
@@ -99,6 +91,7 @@ func New(client *s3helper.S3, clientErr error) *Upload {
 		helpModel:   help.New(),
 		picker:      filepicker.New(),
 		listPicker:  listpicker.New(),
+		status:      statusbar.New(),
 		bucket:      "",
 		buckets:     []string{},
 		client:      client,
@@ -225,16 +218,8 @@ func (u *Upload) View() string {
 		Render(cardStack)
 
 	// Status message box
-	msgBox := ""
-	if u.statusMsg != "" {
-		s := style.Default.StatusText
-		if u.statusKind == statusError {
-			s = style.Default.StatusError
-		}
-		boxContent := s.Render(u.statusMsg)
-		msgBox = style.Default.StatusBox.
-			Width(cardWidth).
-			Render(boxContent)
+	msgBox := u.status.View(cardWidth)
+	if msgBox != "" {
 		msgBox = lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(w).
@@ -310,7 +295,7 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 
 	// Handle async bucket loading result
 	if msg, ok := msg.(bucketsLoadedMsg); ok {
-		u.statusMsg = ""
+		u.status.Clear()
 		if msg.err == nil && len(msg.names) > 0 {
 			u.buckets = msg.names
 			u.bucket = u.buckets[0]
@@ -321,11 +306,9 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 			return u.listPicker.Init()
 		}
 		if msg.err != nil {
-			u.statusKind = statusError
-			u.statusMsg = "Failed: " + msg.err.Error()
+			u.status.SetError("Failed: " + msg.err.Error())
 		} else {
-			u.statusKind = statusError
-			u.statusMsg = "No buckets found"
+			u.status.SetError("No buckets found")
 		}
 		return nil
 	}
@@ -352,8 +335,7 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 			return u.picker.Init()
 		case cursorBucket:
 			if u.client == nil {
-				u.statusKind = statusError
-				u.statusMsg = "No S3 client configured"
+				u.status.SetError("No S3 client configured")
 				return nil
 			}
 			if len(u.buckets) > 0 {
@@ -363,18 +345,15 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 				u.listOpen = true
 				return u.listPicker.Init()
 			}
-			u.statusKind = statusInfo
-			u.statusMsg = "Loading buckets..."
+			u.status.SetInfo("Loading buckets...")
 			return loadBuckets(u.client)
 		case cursorUpload:
 			if u.selectedFile == "" {
-				u.statusKind = statusError
-				u.statusMsg = "No file selected"
+				u.status.SetError("No file selected")
 				return nil
 			}
 			if u.bucket == "" {
-				u.statusKind = statusError
-				u.statusMsg = "No bucket selected"
+				u.status.SetError("No bucket selected")
 				return nil
 			}
 			// TODO: actual upload
