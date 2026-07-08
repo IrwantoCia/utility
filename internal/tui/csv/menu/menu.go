@@ -159,18 +159,28 @@ func (m *Menu) View() string {
 	helpStr := m.helpModel.View(m.keys)
 	helpHeight := lipgloss.Height(helpStr)
 
-	// Center cards in available space (minus help)
+	// Center horizontally — wrap cardStack in full-width container
+	cardStack = lipgloss.NewStyle().
+		AlignHorizontal(lipgloss.Center).
+		Width(m.lastWindow.Width).
+		Render(cardStack)
+
+	// Center vertically — compute top padding
+	cardStackHeight := lipgloss.Height(cardStack)
 	availableHeight := m.lastWindow.Height - helpHeight
-	centered := lipgloss.Place(
-		m.lastWindow.Width,
-		availableHeight,
-		lipgloss.Center,
-		lipgloss.Center,
-		cardStack,
-	)
+	topPad := max(0, (availableHeight-cardStackHeight)/2)
 
 	var s strings.Builder
-	s.WriteString(centered)
+	for i := 0; i < topPad; i++ {
+		s.WriteRune('\n')
+	}
+	s.WriteString(cardStack)
+
+	// Pad to fill remaining height before help
+	for i := lipgloss.Height(s.String()); i <= m.lastWindow.Height-helpHeight; i++ {
+		s.WriteRune('\n')
+	}
+
 	s.WriteString(helpStr)
 	return s.String()
 }
