@@ -2,6 +2,9 @@ package upload
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -15,6 +18,27 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/components/statusbar"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
+
+type uploadKind int
+
+const (
+	uploadProgress uploadKind = iota
+	uploadDone
+	uploadError
+)
+
+type uploadStatusMsg struct {
+	kind  uploadKind
+	sent  int64
+	total int64
+	err   error
+}
+
+type uploadStartedMsg struct {
+	resultCh <-chan uploadStatusMsg
+	total    int64
+	key      string
+}
 
 type BackToS3MenuMsg struct{}
 
@@ -34,6 +58,57 @@ func loadBuckets(client *s3helper.S3) tea.Cmd {
 			names = append(names, b.Name)
 		}
 		return bucketsLoadedMsg{names: names, err: err}
+	}
+}
+
+func formatSize(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func listenProgress(ch <-chan uploadStatusMsg) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-ch
+		if !ok {
+			return nil
+		}
+		return msg
+	}
+}
+
+func startUpload(client *s3helper.S3, bucket, key, filePath string, totalSize int64) tea.Cmd {
+	return func() tea.Msg {
+		resultCh := make(chan uploadStatusMsg, 100)
+		progressCh := make(chan int64, 50)
+
+		// Forward progress to result channel
+		go func() {
+			for sent := range progressCh {
+				resultCh <- uploadStatusMsg{kind: uploadProgress, sent: sent, total: totalSize}
+			}
+		}()
+
+		// Do actual upload in background
+		go func() {
+			ctx := context.Background()
+			err := client.UploadFile(ctx, bucket, key, filePath, progressCh)
+			if err != nil {
+				resultCh <- uploadStatusMsg{kind: uploadError, err: err}
+			} else {
+				resultCh <- uploadStatusMsg{kind: uploadDone, total: totalSize}
+			}
+			close(resultCh)
+		}()
+
+		return uploadStartedMsg{resultCh: resultCh, total: totalSize, key: key}
 	}
 }
 
@@ -76,6 +151,12 @@ type Upload struct {
 
 	client      *s3helper.S3 // S3 client (nil if not configured)
 	clientError error        // client init error
+
+	uploading      bool
+	uploadResultCh <-chan uploadStatusMsg
+	uploadSent     int64
+	uploadTotal    int64
+	uploadKey      string
 }
 
 var _ common.Component = (*Upload)(nil)
@@ -166,7 +247,7 @@ func (u *Upload) View() string {
 				label = "Select File (" + u.selectedFile + ")"
 			}
 		case int(cursorBucket):
-			if isSelected && u.bucket != "" {
+			if u.bucket != "" {
 				label = "Bucket (" + u.bucket + ")"
 			}
 		}
@@ -217,6 +298,14 @@ func (u *Upload) View() string {
 		Width(w).
 		Render(cardStack)
 
+	// Progress bar during upload
+	var progressLine string
+	if u.uploading && u.uploadTotal > 0 {
+		pct := float64(u.uploadSent) / float64(u.uploadTotal) * 100
+		progressLine = fmt.Sprintf("  %.0f%%  %s / %s", pct, formatSize(u.uploadSent), formatSize(u.uploadTotal))
+		progressLine = style.Default.CardTitle.Render(progressLine)
+	}
+
 	// Status message box
 	msgBox := u.status.View(cardWidth)
 	if msgBox != "" {
@@ -235,6 +324,7 @@ func (u *Upload) View() string {
 		"",
 		cardStack,
 		"",
+		progressLine,
 		msgBox,
 	)
 
@@ -313,8 +403,39 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
+	if msg, ok := msg.(uploadStartedMsg); ok {
+		u.uploadResultCh = msg.resultCh
+		return listenProgress(u.uploadResultCh)
+	}
+
+	if msg, ok := msg.(uploadStatusMsg); ok {
+		switch msg.kind {
+		case uploadProgress:
+			u.uploadSent = msg.sent
+			return listenProgress(u.uploadResultCh)
+		case uploadDone:
+			u.uploading = false
+			u.status.SetSuccess(fmt.Sprintf("Uploaded %s (%s)", u.uploadKey, formatSize(msg.total)))
+			return nil
+		case uploadError:
+			u.uploading = false
+			u.status.SetError("Upload failed: " + msg.err.Error())
+			return nil
+		}
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
+		return nil
+	}
+
+	// Lock cursor during upload — only Esc allowed
+	if u.uploading {
+		if key.Matches(keyMsg, u.keys.Esc) {
+			u.uploading = false
+			u.status.Clear()
+			return nil
+		}
 		return nil
 	}
 
@@ -356,8 +477,19 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 				u.status.SetError("No bucket selected")
 				return nil
 			}
-			// TODO: actual upload
-			return nil
+			// Get file size
+			fi, err := os.Stat(u.selectedFile)
+			if err != nil {
+				u.status.SetError("Cannot access file: " + err.Error())
+				return nil
+			}
+			key := filepath.Base(u.selectedFile)
+			u.uploadKey = key
+			u.uploadTotal = fi.Size()
+			u.uploadSent = 0
+			u.uploading = true
+			u.status.SetInfo(fmt.Sprintf("Uploading %s to %s...", key, u.bucket))
+			return startUpload(u.client, u.bucket, key, u.selectedFile, fi.Size())
 		}
 	}
 
