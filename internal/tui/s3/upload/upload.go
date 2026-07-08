@@ -17,7 +17,7 @@ type BackToS3MenuMsg struct{}
 type OptionType int
 
 const (
-	TypeInput  OptionType = iota
+	TypeInput OptionType = iota
 	TypeAction
 )
 
@@ -56,7 +56,7 @@ func New() *Upload {
 		options: []Option{
 			{Label: "Select File", Description: "Choose a file to upload", Icon: "📂", Type: TypeInput},
 			{Label: "Bucket", Description: "Select destination bucket", Icon: "🪣", Type: TypeInput},
-			{Label: "Upload", Description: "Start upload to S3", Icon: "↑ ", Type: TypeAction},
+			{Label: "Upload", Description: "Start upload to S3", Icon: "⬆ ", Type: TypeAction},
 		},
 		keys:      DefaultKeyMap,
 		helpModel: help.New(),
