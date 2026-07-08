@@ -4,6 +4,8 @@ package result
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -22,14 +24,14 @@ import (
 type BackToCsvMenuMsg struct{}
 
 type Result struct {
-	filePath string
-	rows     [][]string
-	allRows  [][]string // unfiltered original data
-	headers  []string
-	viewport viewport.Model
-	ready           bool
-	cursor          int
-	viewportHeight  int
+	filePath       string
+	rows           [][]string
+	allRows        [][]string // unfiltered original data
+	headers        []string
+	viewport       viewport.Model
+	ready          bool
+	cursor         int
+	viewportHeight int
 
 	isFiltered bool
 
@@ -85,20 +87,64 @@ func (r *Result) buildContent() {
 		return
 	}
 
+	numCols := len(r.headers)
+	numericCol := make([]bool, numCols)
+	colWidth := make([]int, numCols)
+	numericCount := make([]int, numCols)
+
+	for col := range colWidth {
+		colWidth[col] = len(r.headers[col])
+	}
+
+	for _, row := range r.rows {
+		for col, cell := range row {
+			if col >= numCols {
+				continue
+			}
+			if isNumeric(cell) {
+				numericCount[col]++
+			}
+			display := cell
+			if isNumeric(cell) {
+				display = formatThousand(cell)
+			}
+			if w := len(display); w > colWidth[col] {
+				colWidth[col] = w
+			}
+		}
+	}
+
+	// >50% numeric = numeric column
+	rowCount := len(r.rows)
+	for col := range numericCol {
+		if rowCount > 0 && numericCount[col]*2 > rowCount {
+			numericCol[col] = true
+		}
+	}
+
+	formatted := make([][]string, len(r.rows))
+	for i, row := range r.rows {
+		formatted[i] = make([]string, len(row))
+		for j, cell := range row {
+			if j < numCols && numericCol[j] {
+				formatted[i][j] = formatCell(cell, colWidth[j])
+			} else {
+				formatted[i][j] = cell
+			}
+		}
+	}
+
 	t := table.New().
 		Headers(r.headers...).
-		Rows(r.rows...).
+		Rows(formatted...).
 		Border(lipgloss.ThickBorder()).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == table.HeaderRow {
-				// Header row
 				return style.Default.TableHeader
 			}
-			// Highlight cursor row (row is 1-indexed: row 1 = first data row)
 			if row == r.cursor {
 				return style.Default.RowHighlighted
 			}
-			// Alternate colors for non-cursor rows
 			if row%2 == 0 {
 				return style.Default.TableRowAlt
 			}
@@ -147,6 +193,59 @@ func (r *Result) rowMatchesTokens(row []string, tokens []string) bool {
 		}
 	}
 	return true
+}
+
+// isNumeric reports whether s can be parsed as a number.
+func isNumeric(s string) bool {
+	s = strings.ReplaceAll(s, ",", "")
+	_, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return err == nil && strings.TrimSpace(s) != ""
+}
+
+// formatThousand adds comma thousand separators to a numeric string.
+func formatThousand(s string) string {
+	s = strings.ReplaceAll(strings.TrimSpace(s), ",", "")
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return s
+	}
+	neg := n < 0
+	if neg {
+		n = -n
+	}
+	intStr := fmt.Sprintf("%.0f", math.Trunc(n))
+
+	// Detect fractional part from original string
+	var frac string
+	if idx := strings.IndexByte(s, '.'); idx >= 0 && idx+1 < len(s) {
+		frac = s[idx:]
+	}
+	// Build with commas
+	var b strings.Builder
+	if neg {
+		b.WriteByte('-')
+	}
+	for i, ch := range intStr {
+		if i > 0 && (len(intStr)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteRune(ch)
+	}
+	b.WriteString(frac)
+	return b.String()
+}
+
+// formatCell right-pads a numeric cell with spaces to reach maxWidth.
+func formatCell(cell string, maxWidth int) string {
+	if !isNumeric(cell) {
+		return cell
+	}
+	f := formatThousand(cell)
+	pad := maxWidth - len(f)
+	if pad > 0 {
+		return strings.Repeat(" ", pad) + f
+	}
+	return f
 }
 
 func (r *Result) Resize(ws tea.WindowSizeMsg) tea.Cmd {
