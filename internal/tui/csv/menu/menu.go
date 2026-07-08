@@ -89,6 +89,9 @@ func (m *Menu) View() string {
 		return m.picker.View()
 	}
 
+	cardWidth := max(40, m.lastWindow.Width*60/100)
+	cardWidth = min(cardWidth, 60)
+
 	var cards []string
 	for i, opt := range m.options {
 		isSelected := cursorPos(i) == m.cursor
@@ -143,9 +146,6 @@ func (m *Menu) View() string {
 			}
 		}
 
-		cardWidth := max(40, m.lastWindow.Width*60/100)
-		cardWidth = min(cardWidth, 60)
-
 		card := style.Default.CardContainer.
 			BorderForeground(borderColor).
 			Width(cardWidth).
@@ -159,7 +159,6 @@ func (m *Menu) View() string {
 	helpStr := m.helpModel.View(m.keys)
 	helpHeight := lipgloss.Height(helpStr)
 
-	// Center horizontally — wrap cardStack in full-width container
 	cardStack = lipgloss.NewStyle().
 		AlignHorizontal(lipgloss.Center).
 		Width(m.lastWindow.Width).
