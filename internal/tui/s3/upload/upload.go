@@ -1,6 +1,7 @@
 package upload
 
 import (
+	"context"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
@@ -10,10 +11,30 @@ import (
 	s3helper "github.com/IrwantoCia/utility/internal/helper/s3"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/components/filepicker"
+	"github.com/IrwantoCia/utility/internal/tui/components/listpicker"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
 type BackToS3MenuMsg struct{}
+
+// bucketsLoadedMsg carries the result of loading bucket names from S3.
+type bucketsLoadedMsg struct {
+	names []string
+	err   error
+}
+
+// loadBuckets fetches bucket names from the S3 client asynchronously.
+func loadBuckets(client *s3helper.S3) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		buckets, err := client.ListBuckets(ctx)
+		names := make([]string, 0, len(buckets))
+		for _, b := range buckets {
+			names = append(names, b.Name)
+		}
+		return bucketsLoadedMsg{names: names, err: err}
+	}
+}
 
 type OptionType int
 
@@ -45,9 +66,12 @@ type Upload struct {
 	lastWindow   tea.WindowSizeMsg
 	picker       *filepicker.FilePicker
 	pickerOpen   bool
+	listPicker   *listpicker.ListPicker
+	listOpen     bool
 	selectedFile string
 	bucket       string
 	buckets      []string
+	statusMsg    string   // one-shot message shown below cards
 
 	client      *s3helper.S3 // S3 client (nil if not configured)
 	clientError error        // client init error
@@ -65,8 +89,9 @@ func New(client *s3helper.S3, clientErr error) *Upload {
 		keys:        DefaultKeyMap,
 		helpModel:   help.New(),
 		picker:      filepicker.New(),
-		bucket:      "prod",
-		buckets:     []string{"prod", "staging", "dev"},
+		listPicker:  listpicker.New(),
+		bucket:      "",
+		buckets:     []string{},
 		client:      client,
 		clientError: clientErr,
 	}
@@ -77,12 +102,19 @@ func (u *Upload) Init() tea.Cmd { return nil }
 func (u *Upload) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	u.lastWindow = ws
 	u.helpModel, _ = u.helpModel.Update(ws)
-	return u.picker.Resize(ws)
+	return tea.Batch(
+		u.picker.Resize(ws),
+		u.listPicker.Resize(ws),
+	)
 }
 
 func (u *Upload) View() string {
 	if u.pickerOpen {
 		return u.picker.View()
+	}
+
+	if u.listOpen {
+		return u.listPicker.View()
 	}
 
 	if u.client == nil {
@@ -132,7 +164,7 @@ func (u *Upload) View() string {
 				label = "Select File (" + u.selectedFile + ")"
 			}
 		case int(cursorBucket):
-			if isSelected {
+			if isSelected && u.bucket != "" {
 				label = "Bucket (" + u.bucket + ")"
 			}
 		}
@@ -183,6 +215,22 @@ func (u *Upload) View() string {
 		Width(w).
 		Render(cardStack)
 
+	// Status message box
+	msgBox := ""
+	if u.statusMsg != "" {
+		boxContent := style.Default.StatusText.Render(u.statusMsg)
+		if strings.HasPrefix(u.statusMsg, "Failed:") {
+			boxContent = style.Default.StatusError.Render(u.statusMsg)
+		}
+		msgBox = style.Default.StatusBox.
+			Width(cardWidth).
+			Render(boxContent)
+		msgBox = lipgloss.NewStyle().
+			AlignHorizontal(lipgloss.Center).
+			Width(w).
+			Render(msgBox)
+	}
+
 	banner := style.Default.MenuTitle.
 		Width(w).
 		Render(Banner)
@@ -191,6 +239,8 @@ func (u *Upload) View() string {
 		banner,
 		"",
 		cardStack,
+		"",
+		msgBox,
 	)
 
 	contentHeight := lipgloss.Height(content)
@@ -231,6 +281,43 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 		return cmd
 	}
 
+	if u.listOpen {
+		switch msg := msg.(type) {
+		case tea.KeyPressMsg:
+			if key.Matches(msg, u.keys.Esc) {
+				u.listOpen = false
+				return nil
+			}
+		}
+
+		cmd := u.listPicker.Update(msg)
+		if u.listPicker.Selected != "" {
+			u.bucket = u.listPicker.Selected
+			u.listOpen = false
+		}
+		return cmd
+	}
+
+	// Handle async bucket loading result
+	if msg, ok := msg.(bucketsLoadedMsg); ok {
+		u.statusMsg = ""
+		if msg.err == nil && len(msg.names) > 0 {
+			u.buckets = msg.names
+			u.bucket = u.buckets[0]
+			// Auto-open listpicker with loaded buckets
+			u.listPicker.SetItems(u.buckets)
+			u.listPicker.SetTitle("Select Bucket")
+			u.listOpen = true
+			return u.listPicker.Init()
+		}
+		if msg.err != nil {
+			u.statusMsg = "Failed: " + msg.err.Error()
+		} else {
+			u.statusMsg = "No buckets found"
+		}
+		return nil
+	}
+
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil
@@ -252,15 +339,19 @@ func (u *Upload) Update(msg tea.Msg) tea.Cmd {
 			u.pickerOpen = true
 			return u.picker.Init()
 		case cursorBucket:
-			idx := 0
-			for i, b := range u.buckets {
-				if b == u.bucket {
-					idx = i
-					break
-				}
+			if u.client == nil {
+				u.statusMsg = "No S3 client configured"
+				return nil
 			}
-			idx = (idx + 1) % len(u.buckets)
-			u.bucket = u.buckets[idx]
+			if len(u.buckets) > 0 {
+				// Already loaded, open listpicker immediately
+				u.listPicker.SetItems(u.buckets)
+				u.listPicker.SetTitle("Select Bucket")
+				u.listOpen = true
+				return u.listPicker.Init()
+			}
+			u.statusMsg = "Loading buckets..."
+			return loadBuckets(u.client)
 		case cursorUpload:
 			return func() tea.Msg {
 				return BackToS3MenuMsg{}
