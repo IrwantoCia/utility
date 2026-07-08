@@ -24,6 +24,14 @@ type Styles struct {
 	CardTitleSelected lipgloss.Style
 	CardDesc          lipgloss.Style
 	CardContainer     lipgloss.Style
+	EnvSectionBorder  lipgloss.Style
+	EnvSectionTitle   lipgloss.Style
+	EnvKey            lipgloss.Style
+	EnvValue          lipgloss.Style
+	EnvValueMasked    lipgloss.Style
+	EnvValueExample   lipgloss.Style
+	EnvStatusSet      lipgloss.Style
+	EnvStatusMissing  lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -91,6 +99,28 @@ func DefaultStyles() Styles {
 		CardContainer: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			Padding(0, 1),
+		EnvSectionBorder: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			Padding(1, 1),
+		EnvSectionTitle: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("69")),
+		EnvKey: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Width(15),
+		EnvValue: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252")),
+		EnvValueMasked: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Italic(true),
+		EnvValueExample: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Italic(true),
+		EnvStatusSet: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("46")),
+		EnvStatusMissing: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
 	}
 }
 
