@@ -36,15 +36,6 @@ type Option struct {
 	Type        OptionType
 }
 
-// envInfo describes a single S3-related environment variable.
-type envInfo struct {
-	name     string
-	value    string // raw from .env, empty if not set
-	isSet    bool
-	isSecret bool
-	example  string
-}
-
 // Menu represents the S3 sub-menu allowing the user to choose Upload or Browse.
 type Menu struct {
 	options    []Option
@@ -54,8 +45,8 @@ type Menu struct {
 	lastWindow tea.WindowSizeMsg
 	picker     *filepicker.FilePicker
 	pickerOpen bool
-	envFile    string     // selected .env file path
-	envVars    []envInfo  // parsed S3_* vars from .env
+	envFile    string   // selected .env file path
+	envInfo    EnvInfo  // parsed S3_* vars from .env
 }
 
 var _ common.Component = (*Menu)(nil)
@@ -77,7 +68,7 @@ func New() *Menu {
 	if _, err := os.Stat(".env"); err == nil {
 		m.envFile = ".env"
 	}
-	m.loadEnvInfo(m.envFile)
+	m.envInfo.Load(m.envFile)
 
 	return m
 }
@@ -90,116 +81,6 @@ func (m *Menu) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	m.lastWindow = ws
 	m.helpModel, _ = m.helpModel.Update(ws)
 	return m.picker.Resize(ws)
-}
-
-// loadEnvInfo reads the given .env file and populates m.envVars.
-func (m *Menu) loadEnvInfo(envFile string) {
-	m.envVars = []envInfo{
-		{name: "S3_PROVIDER", isSecret: false, example: "b2"},
-		{name: "S3_ENDPOINT", isSecret: false, example: "s3.us-west-004.backblazeb2.com"},
-		{name: "S3_ACCESS_KEY", isSecret: true, example: "required"},
-		{name: "S3_SECRET_KEY", isSecret: true, example: "required"},
-		{name: "S3_SECURE", isSecret: false, example: "true"},
-	}
-
-	if envFile == "" {
-		return
-	}
-
-	data, err := os.ReadFile(envFile)
-	if err != nil {
-		return
-	}
-
-	envMap := make(map[string]string)
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-		envMap[key] = value
-	}
-
-	for i, ev := range m.envVars {
-		if val, ok := envMap[ev.name]; ok && val != "" {
-			m.envVars[i].value = val
-			m.envVars[i].isSet = true
-		}
-	}
-}
-
-// buildEnvSection renders the S3 environment info box.
-func (m *Menu) buildEnvSection(width int) string {
-	innerWidth := width - 4 // border (2) + padding left/right (2)
-	maxValueWidth := innerWidth - 2 - 15 - 2 - 2 - 1 // indent + status + gap + key + gap
-	if maxValueWidth < 10 {
-		maxValueWidth = 10
-	}
-
-	var rows []string
-
-	rows = append(rows, style.Default.EnvSectionTitle.Render("S3 Environment"))
-	rows = append(rows, "")
-
-	for _, ev := range m.envVars {
-		var valStr string
-		var valStyle lipgloss.Style
-
-		if ev.isSet {
-			if ev.isSecret {
-				valStr = "****"
-				valStyle = style.Default.EnvValueMasked
-			} else {
-				valStr = ev.value
-				valStyle = style.Default.EnvValue
-			}
-		} else {
-			if ev.example == "required" {
-				valStr = "(required)"
-			} else {
-				valStr = "(ex: " + ev.example + ")"
-			}
-			valStyle = style.Default.EnvValueExample
-		}
-
-		// Truncate value if too long (skip mask which is always 4 chars)
-		if valStr != "****" && len(valStr) > maxValueWidth {
-			valStr = valStr[:max(0, maxValueWidth-1)] + "…"
-		}
-
-		statusStyle := style.Default.EnvStatusMissing
-		statusDot := "○"
-		if ev.isSet {
-			statusStyle = style.Default.EnvStatusSet
-			statusDot = "●"
-		}
-
-		keyStr := style.Default.EnvKey.Render(ev.name)
-		valStr = valStyle.Render(valStr)
-		statusStr := statusStyle.Render(statusDot)
-
-		row := lipgloss.JoinHorizontal(lipgloss.Left,
-			"  ",
-			statusStr,
-			"  ",
-			keyStr,
-			"  ",
-			valStr,
-		)
-		rows = append(rows, row)
-	}
-
-	content := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	return style.Default.EnvSectionBorder.
-		Width(width).
-		Render(content)
 }
 
 // View renders the menu as a set of horizontally-centered option cards.
@@ -296,7 +177,7 @@ func (m *Menu) View() string {
 		Width(m.lastWindow.Width).
 		Render(Banner)
 
-	envSection := m.buildEnvSection(cardWidth)
+	envSection := m.envInfo.View(cardWidth)
 	envSection = lipgloss.NewStyle().
 		AlignHorizontal(lipgloss.Center).
 		Width(m.lastWindow.Width).
@@ -342,7 +223,7 @@ func (m *Menu) Update(msg tea.Msg) tea.Cmd {
 		cmd := m.picker.Update(msg)
 		if m.picker.SelectedFile != "" {
 			m.envFile = m.picker.SelectedFile
-			m.loadEnvInfo(m.picker.SelectedFile)
+			m.envInfo.Load(m.picker.SelectedFile)
 			m.pickerOpen = false
 		}
 		return cmd
