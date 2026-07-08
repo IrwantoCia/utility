@@ -200,13 +200,9 @@ func (m *Menu) Update(msg tea.Msg) tea.Cmd {
 				return common.BackToMenuMsg{}
 			}
 		case key.Matches(keyMsg, m.keys.Up):
-			if m.cursor > 0 {
-				m.cursor--
-			}
+			m.cursor = (m.cursor - 1 + cursorPos(len(m.options))) % cursorPos(len(m.options))
 		case key.Matches(keyMsg, m.keys.Down):
-			if m.cursor < cursorPos(len(m.options)-1) {
-				m.cursor++
-			}
+			m.cursor = (m.cursor + 1) % cursorPos(len(m.options))
 		case key.Matches(keyMsg, m.keys.Enter):
 			switch m.cursor {
 			case cursorSelectFile:
