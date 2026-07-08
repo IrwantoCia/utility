@@ -53,12 +53,8 @@ func New(cfg Config) (*S3, error) {
 	}
 
 	secure := true
-	if !cfg.Secure {
-		secure = false
-	}
 	// Allow explicit override via environment variable.
-	secureEnv := os.Getenv("S3_SECURE")
-	if secureEnv == "false" || secureEnv == "0" {
+	if s := os.Getenv("S3_SECURE"); s == "false" || s == "0" {
 		secure = false
 	}
 
