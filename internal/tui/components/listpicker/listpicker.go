@@ -82,10 +82,7 @@ func (l *ListPicker) View() string {
 	start, end := 0, n
 	if n > maxVisible {
 		half := maxVisible / 2
-		start = l.cursor - half
-		if start < 0 {
-			start = 0
-		}
+		start = max(l.cursor-half, 0)
 		end = start + maxVisible
 		if end > n {
 			end = n

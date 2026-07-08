@@ -45,8 +45,8 @@ type Menu struct {
 	lastWindow tea.WindowSizeMsg
 	picker     *filepicker.FilePicker
 	pickerOpen bool
-	envFile    string   // selected .env file path
-	envInfo    EnvInfo  // parsed S3_* vars from .env
+	envFile    string  // selected .env file path
+	envInfo    EnvInfo // parsed S3_* vars from .env
 }
 
 var _ common.Component = (*Menu)(nil)
@@ -197,7 +197,7 @@ func (m *Menu) View() string {
 	topPad := max(0, (availableHeight-contentHeight)/2)
 
 	var s strings.Builder
-	for i := 0; i < topPad; i++ {
+	for range topPad {
 		s.WriteRune('\n')
 	}
 	s.WriteString(content)

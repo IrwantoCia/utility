@@ -121,7 +121,7 @@ func (u *Upload) View() string {
 
 	if u.client == nil {
 		if u.clientError != nil {
-			errLine := style.Default.Highlighted.Copy().Background(lipgloss.Color("1")).Render("Error: " + u.clientError.Error())
+			errLine := style.Default.Highlighted.Background(lipgloss.Color("1")).Render("Error: " + u.clientError.Error())
 			centered := lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(u.lastWindow.Width).Render(errLine)
 			return centered + "\n\nPress Esc to go back"
 		}

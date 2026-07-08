@@ -50,8 +50,8 @@ func (e *EnvInfo) Load(envFile string) {
 	}
 
 	envMap := make(map[string]string)
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
+	lines := strings.SplitSeq(string(data), "\n")
+	for line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -75,11 +75,9 @@ func (e *EnvInfo) Load(envFile string) {
 
 // View renders a bordered "S3 Environment" box of the given width.
 func (e *EnvInfo) View(width int) string {
-	innerWidth := width - 4 // border (2) + padding left/right (2)
+	innerWidth := width - 4                          // border (2) + padding left/right (2)
 	maxValueWidth := innerWidth - 2 - 1 - 2 - 15 - 2 // indent + status + gap + key + gap
-	if maxValueWidth < 10 {
-		maxValueWidth = 10
-	}
+	maxValueWidth = max(maxValueWidth, 10)
 
 	var rows []string
 
