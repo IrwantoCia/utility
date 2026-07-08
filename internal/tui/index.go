@@ -13,7 +13,7 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/csv"
 	"github.com/IrwantoCia/utility/internal/tui/transcribe"
-	"github.com/IrwantoCia/utility/internal/tui/upload"
+	"github.com/IrwantoCia/utility/internal/tui/s3"
 )
 
 type menu struct {
@@ -133,7 +133,7 @@ func Run() {
 		keys:   DefaultKeyMap,
 		menus: []menu{
 			{name: "CSV", component: csv.New()},
-			{name: "Upload", component: upload.New()},
+			{name: "S3", component: s3.New()},
 			{name: "Transcribe", component: transcribe.New()},
 		},
 	}

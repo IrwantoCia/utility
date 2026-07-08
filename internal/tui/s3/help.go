@@ -1,4 +1,4 @@
-package upload
+package s3
 
 import (
 	"charm.land/bubbles/v2/help"
