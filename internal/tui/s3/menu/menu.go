@@ -126,16 +126,27 @@ func (m *Menu) View() string {
 		Width(m.lastWindow.Width).
 		Render(cardStack)
 
+	// Render banner
+	banner := style.Default.MenuTitle.
+		Width(m.lastWindow.Width).
+		Render(Banner)
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		banner,
+		"",
+		cardStack,
+	)
+
 	// Center vertically — compute top padding
-	cardStackHeight := lipgloss.Height(cardStack)
+	contentHeight := lipgloss.Height(content)
 	availableHeight := m.lastWindow.Height - helpHeight
-	topPad := max(0, (availableHeight-cardStackHeight)/2)
+	topPad := max(0, (availableHeight-contentHeight)/2)
 
 	var s strings.Builder
 	for i := 0; i < topPad; i++ {
 		s.WriteRune('\n')
 	}
-	s.WriteString(cardStack)
+	s.WriteString(content)
 
 	// Pad to fill remaining height before help
 	for i := lipgloss.Height(s.String()); i <= m.lastWindow.Height-helpHeight; i++ {
