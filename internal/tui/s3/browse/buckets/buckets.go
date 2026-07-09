@@ -12,9 +12,11 @@ import (
 
 // Buckets renders a navigable list of S3 buckets.
 type Buckets struct {
-	items  []string
-	cursor int
-	status string
+	items      []string
+	cursor     int
+	status     string
+	maxVisible int
+	offset     int
 }
 
 var _ common.Component = (*Buckets)(nil)
@@ -30,6 +32,7 @@ func New() *Buckets {
 func (b *Buckets) SetItems(items []string) {
 	b.items = items
 	b.cursor = 0
+	b.offset = 0
 	b.status = ""
 }
 
@@ -41,8 +44,9 @@ func (b *Buckets) SetStatus(s string) {
 // Init is a no-op for the static bucket list.
 func (b *Buckets) Init() tea.Cmd { return nil }
 
-// Resize is a no-op; height is managed by wrapPanel.
+// Resize sets the maximum visible rows based on window height.
 func (b *Buckets) Resize(ws tea.WindowSizeMsg) tea.Cmd {
+	b.maxVisible = ws.Height - 2
 	return nil
 }
 
@@ -51,7 +55,15 @@ func (b *Buckets) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 func (b *Buckets) View() string {
 	if len(b.items) > 0 {
 		var sb strings.Builder
-		for i, item := range b.items {
+		end := b.offset + b.maxVisible
+		if end > len(b.items) {
+			end = len(b.items)
+		}
+		for i := b.offset; i < end; i++ {
+			if i > b.offset {
+				sb.WriteByte('\n')
+			}
+			item := b.items[i]
 			cursor := "  "
 			if i == b.cursor {
 				cursor = "▸ "
@@ -61,7 +73,6 @@ func (b *Buckets) View() string {
 				line = style.Default.Highlighted.Render(line)
 			}
 			sb.WriteString(line)
-			sb.WriteByte('\n')
 		}
 		return sb.String()
 	}
@@ -73,17 +84,23 @@ func (b *Buckets) View() string {
 	return style.Default.CardDesc.Render(msg)
 }
 
-// MoveUp moves the cursor up, wrapping at the top.
+// MoveUp moves the cursor up, scrolling the viewport if needed.
 func (b *Buckets) MoveUp() {
 	if b.cursor > 0 {
 		b.cursor--
 	}
+	if b.cursor < b.offset {
+		b.offset = b.cursor
+	}
 }
 
-// MoveDown moves the cursor down, wrapping at the bottom.
+// MoveDown moves the cursor down, scrolling the viewport if needed.
 func (b *Buckets) MoveDown() {
 	if b.cursor < len(b.items)-1 {
 		b.cursor++
+	}
+	if b.cursor >= b.offset+b.maxVisible {
+		b.offset = b.cursor - b.maxVisible + 1
 	}
 }
 
