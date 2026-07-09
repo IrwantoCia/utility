@@ -242,8 +242,9 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			if b.focus == 0 {
 				selected := b.buckets.Selected()
 				if selected != "" && b.client != nil {
-					b.objects.SetItems([]string{})
-					return loadObjects(b.client, selected)
+				b.objects.SetItems([]string{})
+				b.focus = 1
+				return loadObjects(b.client, selected)
 				}
 			}
 			return nil
