@@ -3,8 +3,6 @@
 package listpicker
 
 import (
-	"strings"
-
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -57,29 +55,36 @@ func (l *ListPicker) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	return nil
 }
 
-// View renders the full-screen list picker with title, items, and help bar.
+// View renders the modern floating-modal list picker with title, items,
+// and help bar.
 func (l *ListPicker) View() string {
-	h := l.lastWindow.Height
+	if len(l.items) == 0 {
+		return ""
+	}
+
+	termW := l.lastWindow.Width
+	termH := l.lastWindow.Height
 
 	helpStr := l.helpModel.View(l.keys)
 	helpHeight := lipgloss.Height(helpStr)
 
-	// Available rows for content
-	available := h - helpHeight
+	// Box width: at most 60% of terminal, at least 40, capped at 60
+	boxW := min(max(termW*60/100, 40), 60)
 
-	// Title
-	titleLine := l.styles.Title.
-		Width(l.lastWindow.Width).
-		Render(l.title)
+	// Available rows for items inside box
+	// title(1) + spacer(1) + items + help outside box
+	// Box overhead: border(2) + padding top(1) + padding bottom(1) = 4
+	// Content inside box: title(1) + spacer(1) + items
+	// So: boxHeight = 4 + 2 + visibleItems
+	// And: termH = boxHeight + helpHeight
+	// → visibleItems = termH - helpHeight - 6
+	maxVisible := termH - helpHeight - 6
+	if maxVisible < 3 {
+		maxVisible = 3
+	}
 
-	var rows []string
-	rows = append(rows, "")
-	rows = append(rows, titleLine)
-	rows = append(rows, "")
-
-	// Visible range (cursor-centred scrolling)
+	// Scroll logic (cursor-centered)
 	n := len(l.items)
-	maxVisible := max(3, available-5)
 	start, end := 0, n
 	if n > maxVisible {
 		half := maxVisible / 2
@@ -91,28 +96,49 @@ func (l *ListPicker) View() string {
 		}
 	}
 
-	// Render visible items
-	itemWidth := l.lastWindow.Width - 4
+	// Title bar
+	innerW := boxW - 4 // 2 border + 2 padding
+	titleText := l.styles.Title.Width(innerW).
+		AlignHorizontal(lipgloss.Left).
+		Render("❯ " + l.title)
+
+	// Item rows
+	var itemRows []string
 	for i := start; i < end; i++ {
-		item := l.items[i]
+		prefix := "  "
 		s := l.styles.Item
 		if i == l.cursor {
+			prefix = "❯ "
 			s = l.styles.Selected
 		}
-		itemStr := s.Width(itemWidth).Render("  " + item)
-		rows = append(rows, itemStr)
+		line := s.Width(innerW).Render(prefix + l.items[i])
+		itemRows = append(itemRows, line)
 	}
 
-	// Join and pad to fill available height
-	padded := lipgloss.JoinVertical(lipgloss.Left, rows...)
-	contentHeight := lipgloss.Height(padded)
-	var b strings.Builder
-	b.WriteString(padded)
-	for i := contentHeight; i < available; i++ {
-		b.WriteRune('\n')
+	// Pad to maxVisible so box height is consistent
+	for len(itemRows) < maxVisible {
+		itemRows = append(itemRows, "")
 	}
-	b.WriteString(helpStr)
-	return b.String()
+
+	// Assemble inside the box
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		titleText,
+		"",
+		lipgloss.JoinVertical(lipgloss.Left, itemRows...),
+	)
+
+	box := l.styles.Box.Width(boxW).Render(inner)
+
+	// Center box vertically above help bar
+	availH := termH - helpHeight
+	centered := lipgloss.NewStyle().
+		Width(termW).
+		Height(availH).
+		AlignHorizontal(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Render(box)
+
+	return lipgloss.JoinVertical(lipgloss.Left, centered, helpStr)
 }
 
 // Update handles keyboard input for navigation and selection.
