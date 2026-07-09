@@ -3,6 +3,8 @@
 package browse
 
 import (
+	"context"
+
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -15,6 +17,17 @@ import (
 
 // BackToS3MenuMsg tells the S3 coordinator to return to the S3 sub-menu.
 type BackToS3MenuMsg struct{}
+
+type bucketsLoadedMsg struct {
+	names []string
+	err   error
+}
+
+type objectsLoadedMsg struct {
+	keys   []string
+	err    error
+	bucket string
+}
 
 // Browse coordinates the 2-panel S3 browser (buckets + objects).
 type Browse struct {
@@ -50,12 +63,40 @@ func New(client *s3helper.S3, clientErr error) *Browse {
 	}
 }
 
-// Init initialises both sub-panels concurrently.
+// Init initialises both sub-panels and triggers bucket loading.
 func (b *Browse) Init() tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		b.buckets.Init(),
 		b.objects.Init(),
-	)
+	}
+	if b.client != nil {
+		cmds = append(cmds, loadBuckets(b.client))
+	}
+	return tea.Batch(cmds...)
+}
+
+func loadBuckets(client *s3helper.S3) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		buckets, err := client.ListBuckets(ctx)
+		names := make([]string, 0, len(buckets))
+		for _, b := range buckets {
+			names = append(names, b.Name)
+		}
+		return bucketsLoadedMsg{names: names, err: err}
+	}
+}
+
+func loadObjects(client *s3helper.S3, bucket string) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		objects, err := client.ListObjects(ctx, bucket, "")
+		keys := make([]string, 0, len(objects))
+		for _, o := range objects {
+			keys = append(keys, o.Key)
+		}
+		return objectsLoadedMsg{keys: keys, err: err, bucket: bucket}
+	}
 }
 
 // Resize computes the 2-column layout and forwards adjusted sizes to sub-panels.
@@ -142,8 +183,24 @@ func (b *Browse) wrapPanel(content string, w int, active bool, title string) str
 }
 
 // Update handles input: Esc returns to S3 menu, arrow/vim keys navigate,
-// Left/Right switch panels, and non-key events are broadcast to both panels.
+// Left/Right switch panels, Enter loads objects for selected bucket,
+// and async loading results are handled outside key handling.
 func (b *Browse) Update(msg tea.Msg) tea.Cmd {
+	// Handle async loading results first (before key handling).
+	if msg, ok := msg.(bucketsLoadedMsg); ok {
+		if msg.err == nil && len(msg.names) > 0 {
+			b.buckets.SetItems(msg.names)
+		}
+		return nil
+	}
+
+	if msg, ok := msg.(objectsLoadedMsg); ok {
+		if msg.err == nil && len(msg.keys) > 0 {
+			b.objects.SetItems(msg.keys)
+		}
+		return nil
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		if key.Matches(msg, b.keys.Esc) {
@@ -175,8 +232,16 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			b.focus = 1
 			return nil
 		}
-		// Enter key handled here in the future (e.g., load objects for selected bucket)
-		// For now, ignore.
+		if key.Matches(msg, b.keys.Enter) {
+			if b.focus == 0 {
+				selected := b.buckets.Selected()
+				if selected != "" && b.client != nil {
+					b.objects.SetItems([]string{})
+					return loadObjects(b.client, selected)
+				}
+			}
+			return nil
+		}
 		return nil
 
 	default:

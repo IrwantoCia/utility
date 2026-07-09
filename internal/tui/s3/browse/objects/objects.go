@@ -18,16 +18,17 @@ type Objects struct {
 
 var _ common.Component = (*Objects)(nil)
 
-// New creates an Objects panel with hardcoded demo data.
+// New creates an empty Objects panel.
 func New() *Objects {
 	return &Objects{
-		items: []string{
-			"report.csv",
-			"data.json",
-			"logs/",
-			"config.yaml",
-		},
+		items: []string{},
 	}
+}
+
+// SetItems replaces the object list and resets the cursor to the top.
+func (o *Objects) SetItems(items []string) {
+	o.items = items
+	o.cursor = 0
 }
 
 // Init is a no-op for the static object list.

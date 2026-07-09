@@ -18,11 +18,17 @@ type Buckets struct {
 
 var _ common.Component = (*Buckets)(nil)
 
-// New creates a Buckets panel with hardcoded demo data.
+// New creates an empty Buckets panel.
 func New() *Buckets {
 	return &Buckets{
-		items: []string{"prod", "staging", "dev"},
+		items: []string{},
 	}
+}
+
+// SetItems replaces the bucket list and resets the cursor to the top.
+func (b *Buckets) SetItems(items []string) {
+	b.items = items
+	b.cursor = 0
 }
 
 // Init is a no-op for the static bucket list.
