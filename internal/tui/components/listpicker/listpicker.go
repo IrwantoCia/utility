@@ -10,7 +10,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
-	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
 // ListPicker is a reusable TUI component for selecting an item from a
@@ -20,6 +19,7 @@ type ListPicker struct {
 	cursor     int
 	Selected   string // set on Enter, caller should clear before re-open
 	title      string
+	styles     Styles
 	keys       KeyMap
 	helpModel  help.Model
 	lastWindow tea.WindowSizeMsg
@@ -33,6 +33,7 @@ func New() *ListPicker {
 		keys:      DefaultKeyMap,
 		helpModel: help.New(),
 		title:     "Select",
+		styles:    DefaultStyles(),
 	}
 }
 
@@ -67,7 +68,7 @@ func (l *ListPicker) View() string {
 	available := h - helpHeight
 
 	// Title
-	titleLine := style.Default.MenuTitle.
+	titleLine := l.styles.Title.
 		Width(l.lastWindow.Width).
 		Render(l.title)
 
@@ -94,9 +95,9 @@ func (l *ListPicker) View() string {
 	itemWidth := l.lastWindow.Width - 4
 	for i := start; i < end; i++ {
 		item := l.items[i]
-		s := style.Default.MenuItem
+		s := l.styles.Item
 		if i == l.cursor {
-			s = style.Default.MenuItemSelected
+			s = l.styles.Selected
 		}
 		itemStr := s.Width(itemWidth).Render("  " + item)
 		rows = append(rows, itemStr)
