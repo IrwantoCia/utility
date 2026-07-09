@@ -4,6 +4,7 @@ package browse
 
 import (
 	"context"
+	"fmt"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -147,7 +148,13 @@ func (b *Browse) View() string {
 // renderPanels builds the two bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
 	bucketView := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == focusBuckets, "Buckets")
-	objectView := b.wrapPanel(b.objects.View(), b.rightW, b.focus == focusObjects, "Objects")
+	objectTitle := "Objects"
+	if b.objects.FilterActive() {
+		objectTitle = fmt.Sprintf("Objects ▸ %s [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
+	} else if b.objects.Filter() != "" {
+		objectTitle = fmt.Sprintf("Objects ▸ %s [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
+	}
+	objectView := b.wrapPanel(b.objects.View(), b.rightW, b.focus == focusObjects, objectTitle)
 	return lipgloss.JoinHorizontal(lipgloss.Top, bucketView, objectView)
 }
 
@@ -212,6 +219,33 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			b.objects.SetItems(msg.keys)
 		}
 		return nil
+	}
+
+	// ── Filter mode for objects panel ──────────────────────────────
+	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		if b.objects.FilterActive() {
+			if key.Matches(keyMsg, b.keys.Esc) {
+				b.objects.ClearFilter()
+				return nil
+			}
+			if key.Matches(keyMsg, b.keys.Backspace) {
+				b.objects.DeleteFilter()
+				return nil
+			}
+			if keyMsg.Text != "" {
+				for _, r := range keyMsg.Text {
+					b.objects.AppendFilter(r)
+				}
+				return nil
+			}
+			// Any other key: exit filter edit mode, fall through to normal handling
+			b.objects.ExitFilterMode()
+		} else {
+			if key.Matches(keyMsg, b.keys.Filter) && b.focus == focusObjects && b.objects.TotalItems() > 0 {
+				b.objects.EnterFilter()
+				return nil
+			}
+		}
 	}
 
 	switch msg := msg.(type) {

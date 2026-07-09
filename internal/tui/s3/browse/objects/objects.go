@@ -12,10 +12,13 @@ import (
 
 // Objects renders a navigable list of S3 object keys.
 type Objects struct {
-	items      []string
-	cursor     int
-	maxVisible int
-	offset     int
+	items        []string
+	allItems     []string // original unfiltered list from S3
+	filter       string   // current filter query
+	filterActive bool     // true when editing filter (typing mode)
+	cursor       int
+	maxVisible   int
+	offset       int
 }
 
 var _ common.Component = (*Objects)(nil)
@@ -29,7 +32,78 @@ func New() *Objects {
 
 // SetItems replaces the object list and resets the cursor to the top.
 func (o *Objects) SetItems(items []string) {
+	o.allItems = items
 	o.items = items
+	o.cursor = 0
+	o.offset = 0
+}
+
+// EnterFilter activates filter editing mode.
+func (o *Objects) EnterFilter() {
+	o.filterActive = true
+	o.filter = ""
+	o.cursor = 0
+	o.offset = 0
+}
+
+// ExitFilterMode exits filter editing but keeps the filter and filtered items applied.
+func (o *Objects) ExitFilterMode() {
+	o.filterActive = false
+}
+
+// AppendFilter adds a rune to the filter query and re-filters.
+func (o *Objects) AppendFilter(r rune) {
+	o.filter += string(r)
+	o.applyFilter()
+}
+
+// DeleteFilter removes the last rune from the filter query and re-filters.
+// Handle multi-byte runes: convert to []rune, slice, convert back.
+func (o *Objects) DeleteFilter() {
+	runes := []rune(o.filter)
+	if len(runes) == 0 {
+		return
+	}
+	o.filter = string(runes[:len(runes)-1])
+	o.applyFilter()
+}
+
+// ClearFilter clears the filter and restores all items.
+func (o *Objects) ClearFilter() {
+	o.filterActive = false
+	o.filter = ""
+	o.items = o.allItems
+	o.cursor = 0
+	o.offset = 0
+}
+
+// Filter returns the current filter query string.
+func (o *Objects) Filter() string { return o.filter }
+
+// FilterActive returns whether filter editing mode is active.
+func (o *Objects) FilterActive() bool { return o.filterActive }
+
+// TotalItems returns the count of all (unfiltered) items.
+func (o *Objects) TotalItems() int { return len(o.allItems) }
+
+// applyFilter rebuilds o.items by case-insensitive substring matching against o.allItems.
+// If filter is empty, restores o.items = o.allItems.
+// Resets cursor and offset to 0.
+func (o *Objects) applyFilter() {
+	if o.filter == "" {
+		o.items = o.allItems
+		o.cursor = 0
+		o.offset = 0
+		return
+	}
+	q := strings.ToLower(o.filter)
+	filtered := make([]string, 0)
+	for _, item := range o.allItems {
+		if strings.Contains(strings.ToLower(item), q) {
+			filtered = append(filtered, item)
+		}
+	}
+	o.items = filtered
 	o.cursor = 0
 	o.offset = 0
 }
