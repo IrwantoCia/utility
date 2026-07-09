@@ -83,6 +83,36 @@ func (o *Objects) Items() []string {
 	return o.items
 }
 
+// PageUp moves the cursor up by one page worth of items.
+func (o *Objects) PageUp() {
+	if o.maxVisible <= 0 {
+		return
+	}
+	o.cursor -= o.maxVisible / 2
+	if o.cursor < 0 {
+		o.cursor = 0
+	}
+	o.offset = o.cursor
+}
+
+// PageDown moves the cursor down by one page worth of items.
+func (o *Objects) PageDown() {
+	if o.maxVisible <= 0 || len(o.items) == 0 {
+		return
+	}
+	o.cursor += o.maxVisible / 2
+	if o.cursor >= len(o.items) {
+		o.cursor = len(o.items) - 1
+	}
+	// Scroll viewport so cursor stays visible
+	if o.cursor >= o.offset+o.maxVisible {
+		o.offset = o.cursor - o.maxVisible + 1
+	}
+	if o.offset < 0 {
+		o.offset = 0
+	}
+}
+
 // MoveUp moves the cursor up, scrolling the viewport if needed.
 func (o *Objects) MoveUp() {
 	if o.cursor > 0 {

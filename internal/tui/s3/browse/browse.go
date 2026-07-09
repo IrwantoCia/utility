@@ -29,12 +29,19 @@ type objectsLoadedMsg struct {
 	bucket string
 }
 
+type panelFocus int
+
+const (
+	focusBuckets panelFocus = iota
+	focusObjects
+)
+
 // Browse coordinates the 2-panel S3 browser (buckets + objects).
 type Browse struct {
 	buckets *buckets.Buckets
 	objects *objects.Objects
 
-	focus      int // 0=buckets, 1=objects
+	focus      panelFocus
 	lastWindow tea.WindowSizeMsg
 	keys       KeyMap
 	helpModel  help.Model
@@ -55,7 +62,7 @@ func New(client *s3helper.S3, clientErr error) *Browse {
 	return &Browse{
 		buckets:     buckets.New(),
 		objects:     objects.New(),
-		focus:       0,
+		focus:       focusBuckets,
 		keys:        DefaultKeyMap,
 		helpModel:   help.New(),
 		client:      client,
@@ -139,8 +146,8 @@ func (b *Browse) View() string {
 
 // renderPanels builds the two bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
-	bucketView := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == 0, "Buckets")
-	objectView := b.wrapPanel(b.objects.View(), b.rightW, b.focus == 1, "Objects")
+	bucketView := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == focusBuckets, "Buckets")
+	objectView := b.wrapPanel(b.objects.View(), b.rightW, b.focus == focusObjects, "Objects")
 	return lipgloss.JoinHorizontal(lipgloss.Top, bucketView, objectView)
 }
 
@@ -213,37 +220,55 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			return func() tea.Msg { return BackToS3MenuMsg{} }
 		}
 		if key.Matches(msg, b.keys.Up) {
-			if b.focus == 0 {
+			if b.focus == focusBuckets {
 				b.buckets.MoveUp()
 			}
-			if b.focus == 1 {
+			if b.focus == focusObjects {
 				b.objects.MoveUp()
 			}
 			return nil
 		}
 		if key.Matches(msg, b.keys.Down) {
-			if b.focus == 0 {
+			if b.focus == focusBuckets {
 				b.buckets.MoveDown()
 			}
-			if b.focus == 1 {
+			if b.focus == focusObjects {
 				b.objects.MoveDown()
 			}
 			return nil
 		}
+		if key.Matches(msg, b.keys.PgUp) {
+			if b.focus == focusBuckets {
+				b.buckets.PageUp()
+			}
+			if b.focus == focusObjects {
+				b.objects.PageUp()
+			}
+			return nil
+		}
+		if key.Matches(msg, b.keys.PgDown) {
+			if b.focus == focusBuckets {
+				b.buckets.PageDown()
+			}
+			if b.focus == focusObjects {
+				b.objects.PageDown()
+			}
+			return nil
+		}
 		if key.Matches(msg, b.keys.Left) {
-			b.focus = 0
+			b.focus = focusBuckets
 			return nil
 		}
 		if key.Matches(msg, b.keys.Right) {
-			b.focus = 1
+			b.focus = focusObjects
 			return nil
 		}
 		if key.Matches(msg, b.keys.Enter) {
-			if b.focus == 0 {
+			if b.focus == focusBuckets {
 				selected := b.buckets.Selected()
 				if selected != "" && b.client != nil {
 				b.objects.SetItems([]string{})
-				b.focus = 1
+				b.focus = focusObjects
 				return loadObjects(b.client, selected)
 				}
 			}

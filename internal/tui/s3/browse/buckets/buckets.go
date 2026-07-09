@@ -84,6 +84,36 @@ func (b *Buckets) View() string {
 	return style.Default.CardDesc.Render(msg)
 }
 
+// PageUp moves the cursor up by one page worth of items.
+func (b *Buckets) PageUp() {
+	if b.maxVisible <= 0 {
+		return
+	}
+	b.cursor -= b.maxVisible / 2
+	if b.cursor < 0 {
+		b.cursor = 0
+	}
+	b.offset = b.cursor
+}
+
+// PageDown moves the cursor down by one page worth of items.
+func (b *Buckets) PageDown() {
+	if b.maxVisible <= 0 || len(b.items) == 0 {
+		return
+	}
+	b.cursor += b.maxVisible / 2
+	if b.cursor >= len(b.items) {
+		b.cursor = len(b.items) - 1
+	}
+	// Scroll viewport so cursor stays visible
+	if b.cursor >= b.offset+b.maxVisible {
+		b.offset = b.cursor - b.maxVisible + 1
+	}
+	if b.offset < 0 {
+		b.offset = 0
+	}
+}
+
 // MoveUp moves the cursor up, scrolling the viewport if needed.
 func (b *Buckets) MoveUp() {
 	if b.cursor > 0 {
