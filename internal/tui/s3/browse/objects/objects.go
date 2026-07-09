@@ -5,23 +5,15 @@ package objects
 import (
 	"strings"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
-var (
-	navUp   = key.NewBinding(key.WithKeys("k", "up"))
-	navDown = key.NewBinding(key.WithKeys("j", "down"))
-)
-
 // Objects renders a navigable list of S3 object keys.
 type Objects struct {
-	items      []string
-	cursor     int
-	lastWindow tea.WindowSizeMsg
+	items  []string
+	cursor int
 }
 
 var _ common.Component = (*Objects)(nil)
@@ -41,9 +33,8 @@ func New() *Objects {
 // Init is a no-op for the static object list.
 func (o *Objects) Init() tea.Cmd { return nil }
 
-// Resize stores the window dimensions forwarded by the S3 coordinator.
+// Resize is a no-op; height is managed by wrapPanel.
 func (o *Objects) Resize(ws tea.WindowSizeMsg) tea.Cmd {
-	o.lastWindow = ws
 	return nil
 }
 
@@ -70,15 +61,6 @@ func (o *Objects) View() string {
 		sb.WriteByte('\n')
 	}
 
-	// Pad to fill the panel height.
-	targetH := o.lastWindow.Height
-	if targetH > 0 {
-		currentH := lipgloss.Height(sb.String())
-		for j := currentH; j < targetH; j++ {
-			sb.WriteByte('\n')
-		}
-	}
-
 	return sb.String()
 }
 
@@ -87,23 +69,27 @@ func (o *Objects) Items() []string {
 	return o.items
 }
 
-// Update handles keyboard navigation: k/up and j/down.
-func (o *Objects) Update(msg tea.Msg) tea.Cmd {
-	keyMsg, ok := msg.(tea.KeyPressMsg)
-	if !ok {
-		return nil
+// MoveUp moves the cursor up, wrapping at the top.
+func (o *Objects) MoveUp() {
+	if o.cursor > 0 {
+		o.cursor--
 	}
-
-	switch {
-	case key.Matches(keyMsg, navUp):
-		if o.cursor > 0 {
-			o.cursor--
-		}
-	case key.Matches(keyMsg, navDown):
-		if o.cursor < len(o.items)-1 {
-			o.cursor++
-		}
-	}
-
-	return nil
 }
+
+// MoveDown moves the cursor down, wrapping at the bottom.
+func (o *Objects) MoveDown() {
+	if o.cursor < len(o.items)-1 {
+		o.cursor++
+	}
+}
+
+// Selected returns the currently selected object key, or "" if empty.
+func (o *Objects) Selected() string {
+	if len(o.items) == 0 || o.cursor >= len(o.items) {
+		return ""
+	}
+	return o.items[o.cursor]
+}
+
+// Update is a no-op; key handling is done by the coordinator.
+func (o *Objects) Update(msg tea.Msg) tea.Cmd { return nil }

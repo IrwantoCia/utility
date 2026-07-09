@@ -5,23 +5,15 @@ package buckets
 import (
 	"strings"
 
-	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
-var (
-	navUp   = key.NewBinding(key.WithKeys("k", "up"))
-	navDown = key.NewBinding(key.WithKeys("j", "down"))
-)
-
 // Buckets renders a navigable list of S3 buckets.
 type Buckets struct {
-	items      []string
-	cursor     int
-	lastWindow tea.WindowSizeMsg
+	items  []string
+	cursor int
 }
 
 var _ common.Component = (*Buckets)(nil)
@@ -36,9 +28,8 @@ func New() *Buckets {
 // Init is a no-op for the static bucket list.
 func (b *Buckets) Init() tea.Cmd { return nil }
 
-// Resize stores the window dimensions forwarded by the S3 coordinator.
+// Resize is a no-op; height is managed by wrapPanel.
 func (b *Buckets) Resize(ws tea.WindowSizeMsg) tea.Cmd {
-	b.lastWindow = ws
 	return nil
 }
 
@@ -60,35 +51,30 @@ func (b *Buckets) View() string {
 		sb.WriteByte('\n')
 	}
 
-	// Pad to fill the panel height.
-	targetH := b.lastWindow.Height
-	if targetH > 0 {
-		currentH := lipgloss.Height(sb.String())
-		for j := currentH; j < targetH; j++ {
-			sb.WriteByte('\n')
-		}
-	}
-
 	return sb.String()
 }
 
-// Update handles keyboard navigation: k/up and j/down.
-func (b *Buckets) Update(msg tea.Msg) tea.Cmd {
-	keyMsg, ok := msg.(tea.KeyPressMsg)
-	if !ok {
-		return nil
+// MoveUp moves the cursor up, wrapping at the top.
+func (b *Buckets) MoveUp() {
+	if b.cursor > 0 {
+		b.cursor--
 	}
-
-	switch {
-	case key.Matches(keyMsg, navUp):
-		if b.cursor > 0 {
-			b.cursor--
-		}
-	case key.Matches(keyMsg, navDown):
-		if b.cursor < len(b.items)-1 {
-			b.cursor++
-		}
-	}
-
-	return nil
 }
+
+// MoveDown moves the cursor down, wrapping at the bottom.
+func (b *Buckets) MoveDown() {
+	if b.cursor < len(b.items)-1 {
+		b.cursor++
+	}
+}
+
+// Selected returns the currently selected bucket name, or "" if empty.
+func (b *Buckets) Selected() string {
+	if len(b.items) == 0 || b.cursor >= len(b.items) {
+		return ""
+	}
+	return b.items[b.cursor]
+}
+
+// Update is a no-op; key handling is done by the coordinator.
+func (b *Buckets) Update(msg tea.Msg) tea.Cmd { return nil }

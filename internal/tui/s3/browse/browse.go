@@ -3,8 +3,6 @@
 package browse
 
 import (
-	"strings"
-
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
@@ -29,8 +27,9 @@ type Browse struct {
 	helpModel  help.Model
 
 	// Computed layout dimensions.
-	leftW, rightW            int
-	headerH, footerH, panelH int
+	leftW, rightW int
+	footerH       int
+	innerH        int // content height for sub-panels (inside borders)
 
 	client      *s3helper.S3 // S3 client (nil if not configured)
 	clientError error        // client init error
@@ -64,18 +63,14 @@ func (b *Browse) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	b.lastWindow = ws
 	b.helpModel, _ = b.helpModel.Update(ws)
 
-	b.headerH = 2
-	b.footerH = 2
-	b.panelH = ws.Height - b.headerH - b.footerH
+	b.footerH = 1
+	b.innerH = ws.Height - b.footerH - 3 // 3 = top border + banner + bottom border
 
 	b.leftW = ws.Width * 25 / 100
 	b.rightW = ws.Width - b.leftW
 
-	// Sub-panels receive content area (borders consume 2 chars per axis).
-	innerH := b.panelH - 2
-
-	leftWS := tea.WindowSizeMsg{Width: b.leftW - 2, Height: innerH}
-	rightWS := tea.WindowSizeMsg{Width: b.rightW - 2, Height: innerH}
+	leftWS := tea.WindowSizeMsg{Width: b.leftW - 2, Height: b.innerH}
+	rightWS := tea.WindowSizeMsg{Width: b.rightW - 2, Height: b.innerH}
 
 	return tea.Batch(
 		b.buckets.Resize(leftWS),
@@ -96,33 +91,21 @@ func (b *Browse) View() string {
 			Render(msg + "\n\nPress Esc to go back")
 	}
 
-	header := b.renderHeader()
 	middle := b.renderPanels()
-	footer := b.renderFooter()
-	return lipgloss.JoinVertical(lipgloss.Left, header, middle, footer)
-}
-
-// renderHeader returns a styled title bar.
-func (b *Browse) renderHeader() string {
-	style := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("255")).
-		Background(lipgloss.Color("63")).
-		Width(b.lastWindow.Width).
-		AlignHorizontal(lipgloss.Center).
-		Padding(0, 1)
-	return style.Render("S3 Browser")
+	helpStr := b.helpModel.View(b.keys)
+	return lipgloss.JoinVertical(lipgloss.Left, middle, helpStr)
 }
 
 // renderPanels builds the two bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
-	bucketView := b.wrapPanel(b.buckets.View(), b.leftW, b.panelH, b.focus == 0, "Buckets")
-	objectView := b.wrapPanel(b.objects.View(), b.rightW, b.panelH, b.focus == 1, "Objects")
+	bucketView := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == 0, "Buckets")
+	objectView := b.wrapPanel(b.objects.View(), b.rightW, b.focus == 1, "Objects")
 	return lipgloss.JoinHorizontal(lipgloss.Top, bucketView, objectView)
 }
 
-// wrapPanel surrounds content with a bordered box with a highlighted title.
-func (b *Browse) wrapPanel(content string, w, h int, active bool, title string) string {
+// wrapPanel surrounds content with a single bordered container with a banner title.
+// Total panel height = b.innerH + 3 (top border + banner + content + bottom border).
+func (b *Browse) wrapPanel(content string, w int, active bool, title string) string {
 	activeColor := lipgloss.Color("63")
 	inactiveColor := lipgloss.Color("240")
 
@@ -131,11 +114,8 @@ func (b *Browse) wrapPanel(content string, w, h int, active bool, title string) 
 		borderColor = activeColor
 	}
 
-	// Account for the space consumed by top/bottom banner lines.
-	innerH := h - 2
-	innerW := w - 2
+	innerW := w - 4 // 2 for border + 2 for Padding(0,1)
 
-	// Build banner for the top of the panel.
 	bannerStyle := lipgloss.NewStyle().
 		Width(innerW).
 		Background(borderColor).
@@ -145,79 +125,62 @@ func (b *Browse) wrapPanel(content string, w, h int, active bool, title string) 
 
 	banner := bannerStyle.Render(title)
 
-	// Build the inner content area.
 	contentStyle := lipgloss.NewStyle().
 		Width(innerW).
-		Height(innerH - 1) // minus banner
+		Height(b.innerH)
 
 	paddedContent := contentStyle.Render(content)
 
-	// Assemble: top border + banner, content, bottom border.
-	top := lipgloss.NewStyle().
+	inner := lipgloss.JoinVertical(lipgloss.Left, banner, paddedContent)
+
+	return lipgloss.NewStyle().
 		Width(w).
-		Border(lipgloss.NormalBorder(), false, false, true, false).
+		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
-		Render(banner)
-
-	mid := lipgloss.NewStyle().
-		Width(w).
-		Border(lipgloss.NormalBorder(), true, false, true, false).
-		BorderForeground(borderColor).
-		Render(paddedContent)
-
-	bot := lipgloss.NewStyle().
-		Width(w).
-		Border(lipgloss.NormalBorder(), true, true, true, false).
-		BorderForeground(borderColor).
-		Render("")
-
-	return lipgloss.JoinVertical(lipgloss.Left, top, mid, bot)
-}
-
-// renderFooter returns the status bar with key help.
-func (b *Browse) renderFooter() string {
-	helpStr := b.helpModel.View(b.keys)
-	status := strings.Repeat(" ", b.lastWindow.Width-lipgloss.Width(helpStr))
-	paddedHelp := lipgloss.NewStyle().
-		Width(lipgloss.Width(helpStr)).
-		AlignHorizontal(lipgloss.Right).
-		Render(helpStr)
-
-	style := lipgloss.NewStyle().
-		Width(b.lastWindow.Width).
 		Padding(0, 1).
-		Border(lipgloss.NormalBorder(), true, false, false, false).
-		BorderForeground(lipgloss.Color("240"))
-
-	return style.Render(status + paddedHelp)
+		Render(inner)
 }
 
-// Update handles input: Esc returns to S3 menu, Tab cycles focus,
-// KeyPressMsg is routed to the active panel, and everything else
-// is broadcast to both panels.
+// Update handles input: Esc returns to S3 menu, arrow/vim keys navigate,
+// Left/Right switch panels, and non-key events are broadcast to both panels.
 func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
 		if key.Matches(msg, b.keys.Esc) {
-			return func() tea.Msg {
-				return BackToS3MenuMsg{}
-			}
+			return func() tea.Msg { return BackToS3MenuMsg{} }
 		}
-		if key.Matches(msg, b.keys.Tab) {
-			b.focus = (b.focus + 1) % 2
+		if key.Matches(msg, b.keys.Up) {
+			if b.focus == 0 {
+				b.buckets.MoveUp()
+			}
+			if b.focus == 1 {
+				b.objects.MoveUp()
+			}
 			return nil
 		}
-
-		// Route to the focused panel.
-		switch b.focus {
-		case 0:
-			return b.buckets.Update(msg)
-		case 1:
-			return b.objects.Update(msg)
+		if key.Matches(msg, b.keys.Down) {
+			if b.focus == 0 {
+				b.buckets.MoveDown()
+			}
+			if b.focus == 1 {
+				b.objects.MoveDown()
+			}
+			return nil
 		}
+		if key.Matches(msg, b.keys.Left) {
+			b.focus = 0
+			return nil
+		}
+		if key.Matches(msg, b.keys.Right) {
+			b.focus = 1
+			return nil
+		}
+		// Enter key handled here in the future (e.g., load objects for selected bucket)
+		// For now, ignore.
+		return nil
 
 	default:
-		// Broadcast non-key events to both panels.
+		// Broadcast non-key events to both panels (async data loading, etc.)
 		var cmds []tea.Cmd
 		if cmd := b.buckets.Update(msg); cmd != nil {
 			cmds = append(cmds, cmd)
