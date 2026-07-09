@@ -188,9 +188,15 @@ func (b *Browse) wrapPanel(content string, w int, active bool, title string) str
 func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 	// Handle async loading results first (before key handling).
 	if msg, ok := msg.(bucketsLoadedMsg); ok {
-		if msg.err == nil && len(msg.names) > 0 {
-			b.buckets.SetItems(msg.names)
+		if msg.err != nil {
+			b.buckets.SetStatus("Error: " + msg.err.Error())
+			return nil
 		}
+		if len(msg.names) == 0 {
+			b.buckets.SetStatus("No buckets found")
+			return nil
+		}
+		b.buckets.SetItems(msg.names)
 		return nil
 	}
 

@@ -14,6 +14,7 @@ import (
 type Buckets struct {
 	items  []string
 	cursor int
+	status string
 }
 
 var _ common.Component = (*Buckets)(nil)
@@ -29,6 +30,12 @@ func New() *Buckets {
 func (b *Buckets) SetItems(items []string) {
 	b.items = items
 	b.cursor = 0
+	b.status = ""
+}
+
+// SetStatus sets a status message (shown when items list is empty).
+func (b *Buckets) SetStatus(s string) {
+	b.status = s
 }
 
 // Init is a no-op for the static bucket list.
@@ -39,25 +46,31 @@ func (b *Buckets) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	return nil
 }
 
-// View renders the bucket list with the cursor row highlighted.
+// View renders the bucket list with the cursor row highlighted,
+// or a status/loading message when the list is empty.
 func (b *Buckets) View() string {
-	var sb strings.Builder
-
-	for i, item := range b.items {
-		cursor := "  "
-		if i == b.cursor {
-			cursor = "▸ "
+	if len(b.items) > 0 {
+		var sb strings.Builder
+		for i, item := range b.items {
+			cursor := "  "
+			if i == b.cursor {
+				cursor = "▸ "
+			}
+			line := cursor + item
+			if i == b.cursor {
+				line = style.Default.Highlighted.Render(line)
+			}
+			sb.WriteString(line)
+			sb.WriteByte('\n')
 		}
-
-		line := cursor + item
-		if i == b.cursor {
-			line = style.Default.Highlighted.Render(line)
-		}
-		sb.WriteString(line)
-		sb.WriteByte('\n')
+		return sb.String()
 	}
 
-	return sb.String()
+	msg := b.status
+	if msg == "" {
+		msg = "Loading…"
+	}
+	return style.Default.CardDesc.Render(msg)
 }
 
 // MoveUp moves the cursor up, wrapping at the top.
