@@ -137,7 +137,7 @@ func view(m model) string {
 	if m.lastWindow.Width > 0 {
 		content = lipgloss.Place(
 			m.lastWindow.Width,
-			m.lastWindow.Height,
+			m.lastWindow.Height-3,
 			lipgloss.Center, lipgloss.Center,
 			content,
 		)
