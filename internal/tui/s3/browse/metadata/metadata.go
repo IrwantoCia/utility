@@ -1,3 +1,5 @@
+// Package metadata provides the right panel that displays detailed
+// metadata for the currently selected S3 object.
 package metadata
 
 import (

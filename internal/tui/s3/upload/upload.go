@@ -1,3 +1,5 @@
+// Package upload provides the S3 file upload TUI with file selection,
+// bucket picking, and upload progress tracking.
 package upload
 
 import (
