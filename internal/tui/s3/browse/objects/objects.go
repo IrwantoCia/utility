@@ -3,9 +3,11 @@
 package objects
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
@@ -123,7 +125,35 @@ func (o *Objects) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 func (o *Objects) View() string {
 	if len(o.items) > 0 {
 		var sb strings.Builder
+
+		// Filter bar when filter is active
+		if o.filterActive {
+			filterPrefix := style.Default.BrowseListCursor.Render("🔍")
+			filterText := style.Default.BrowseListSelected.Render(" " + o.filter + " ")
+			filterCount := style.Default.BrowseListNormal.Render(
+				fmt.Sprintf("  %d/%d", len(o.items), len(o.allItems)),
+			)
+			filterBar := filterPrefix + filterText + filterCount
+			sb.WriteString(filterBar)
+			sb.WriteByte('\n')
+
+			// Separator line
+			sep := lipgloss.NewStyle().
+				Width(o.maxWidth).
+				Foreground(lipgloss.Color("206")).
+				Render(strings.Repeat("─", o.maxWidth))
+			sb.WriteString(sep)
+			sb.WriteByte('\n')
+		}
+
 		end := o.offset + o.maxVisible
+		if o.filterActive {
+			// Account for the filter bar + separator (2 lines)
+			end = o.offset + o.maxVisible - 2
+			if end < o.offset {
+				end = o.offset
+			}
+		}
 		if end > len(o.items) {
 			end = len(o.items)
 		}
@@ -132,34 +162,29 @@ func (o *Objects) View() string {
 				sb.WriteByte('\n')
 			}
 			item := o.items[i]
-			cursor := "  "
-			if i == o.cursor {
-				cursor = "▸ "
-			}
 
-			icon := "\U0001F4C4 " // 📄 file
+			icon := "📄 "
 			if strings.HasSuffix(item, "/") {
-				icon = "\U0001F4C1 " // 📁 folder
+				icon = "📁 "
 			}
 
-			prefix := cursor + icon
-			prefixWidth := len(prefix)
-			available := o.maxWidth - prefixWidth
-			if available < 4 {
-				available = 4
-			}
-			displayName := truncate(item, available)
-
-			line := prefix + displayName
 			if i == o.cursor {
-				line = style.Default.Highlighted.Render(line)
+				cursorStr := "❯ "
+				iconStr := icon
+				displayName := truncate(item, o.maxWidth-len("  ")-len(cursorStr)-len(iconStr))
+				line := "  " + style.Default.BrowseListCursor.Render(cursorStr) + style.Default.BrowseListSelected.Render(iconStr+displayName)
+				sb.WriteString(line)
+			} else {
+				iconStr := icon
+				displayName := truncate(item, o.maxWidth-len("  ")-len(iconStr))
+				line := "  " + style.Default.BrowseListNormal.Render(iconStr + displayName)
+				sb.WriteString(line)
 			}
-			sb.WriteString(line)
 		}
 		return sb.String()
 	}
 
-	return style.Default.CardDesc.Render("Select a bucket")
+	return style.Default.BrowseEmpty.Render("Select a bucket")
 }
 
 // truncate shortens s to fit within maxWidth visual columns, appending "…"

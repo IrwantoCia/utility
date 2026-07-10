@@ -64,15 +64,15 @@ func (b *Buckets) View() string {
 				sb.WriteByte('\n')
 			}
 			item := b.items[i]
-			cursor := "  "
 			if i == b.cursor {
-				cursor = "▸ "
+				cursor := style.Default.BrowseListCursor.Render("❯ ")
+				name := style.Default.BrowseListSelected.Render(item)
+				sb.WriteString(cursor + name)
+			} else {
+				prefix := style.Default.BrowseListNormal.Render("  ▪ ")
+				name := style.Default.BrowseListNormal.Render(item)
+				sb.WriteString(prefix + name)
 			}
-			line := cursor + item
-			if i == b.cursor {
-				line = style.Default.Highlighted.Render(line)
-			}
-			sb.WriteString(line)
 		}
 		return sb.String()
 	}
@@ -81,7 +81,7 @@ func (b *Buckets) View() string {
 	if msg == "" {
 		msg = "Loading…"
 	}
-	return style.Default.CardDesc.Render(msg)
+	return style.Default.BrowseEmpty.Render(msg)
 }
 
 // PageUp moves the cursor up by one page worth of items.

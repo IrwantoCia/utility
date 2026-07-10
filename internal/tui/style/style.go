@@ -37,6 +37,21 @@ type Styles struct {
 	StatusText    lipgloss.Style
 	StatusError   lipgloss.Style
 	StatusSuccess lipgloss.Style
+
+	// ── Browse panel styles ───────────────────────────────────────
+	BrowseBorderActive   lipgloss.Style
+	BrowseBorderInactive lipgloss.Style
+	BrowseBannerActive   lipgloss.Style
+	BrowseBannerInactive lipgloss.Style
+	BrowseListCursor     lipgloss.Style
+	BrowseListSelected   lipgloss.Style
+	BrowseListNormal     lipgloss.Style
+	BrowseMetaLabel      lipgloss.Style
+	BrowseMetaValue      lipgloss.Style
+	BrowseMetaSection    lipgloss.Style
+	BrowseMetaDim        lipgloss.Style
+	BrowseEmpty          lipgloss.Style
+	BrowseFilterBorder   lipgloss.Style
 }
 
 // DefaultStyles returns a Styles struct with sensible defaults.
@@ -141,6 +156,47 @@ func DefaultStyles() Styles {
 		StatusSuccess: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("46")).
 			Bold(true),
+
+		// ── Browse panel styles ───────────────────────────────────
+		BrowseBorderActive: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("45")),
+		BrowseBorderInactive: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("240")),
+		BrowseBannerActive: lipgloss.NewStyle().
+			Background(lipgloss.Color("45")).
+			Foreground(lipgloss.Color("0")).
+			Bold(true).
+			Padding(0, 1),
+		BrowseBannerInactive: lipgloss.NewStyle().
+			Background(lipgloss.Color("238")).
+			Foreground(lipgloss.Color("250")).
+			Padding(0, 1),
+		BrowseListCursor: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("45")).
+			Bold(true),
+		BrowseListSelected: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("255")).
+			Bold(true),
+		BrowseListNormal: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252")),
+		BrowseMetaLabel: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("45")).
+			Bold(true),
+		BrowseMetaValue: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("255")),
+		BrowseMetaSection: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("45")).
+			Bold(true),
+		BrowseMetaDim: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+		BrowseEmpty: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Italic(true),
+		BrowseFilterBorder: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("206")),
 	}
 }
 

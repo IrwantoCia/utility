@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	s3helper "github.com/IrwantoCia/utility/internal/helper/s3"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
@@ -25,12 +26,12 @@ func (m *Metadata) SetObject(obj *s3helper.Object) {
 
 // View renders the metadata panel content.
 func (m *Metadata) View(width int) string {
-	labelStyle := style.Default.HelpKey   // reuse: gray bold for labels
-	valStyle := style.Default.CardDesc    // reuse: normal text
-	dimStyle := style.Default.CardDesc    // reuse: dim text for dash
+	labelStyle := style.Default.BrowseMetaLabel
+	valStyle := style.Default.BrowseMetaValue
+	dimStyle := style.Default.BrowseMetaDim
 
 	if m.obj == nil {
-		return dimStyle.Render("Select an object")
+		return style.Default.BrowseEmpty.Render("Select an object to view metadata")
 	}
 
 	formatSize := func(size int64) string {
@@ -50,9 +51,9 @@ func (m *Metadata) View(width int) string {
 		if value == "" {
 			value = "-"
 		}
-		lbl := labelStyle.Width(10).Render(label)
+		lbl := labelStyle.Render(label)
 		val := valStyle.Render(value)
-		return lbl + val
+		return lbl + " " + val
 	}
 
 	ownerStr := "-"
@@ -62,29 +63,42 @@ func (m *Metadata) View(width int) string {
 		ownerStr = m.obj.Owner.ID
 	}
 
-	rows := []string{
+	// ── Section separators and titles ──
+	sectionTitle := func(title string) string {
+		return style.Default.BrowseMetaSection.Render("── " + title + " ──")
+	}
+
+	var rows []string
+
+	// ── Object Details ──
+	rows = append(rows, sectionTitle("Details"), "")
+	rows = append(rows,
 		row("Key:", m.obj.Key),
 		row("Size:", formatSize(m.obj.Size)),
 		row("Type:", m.obj.ContentType),
 		row("ETag:", m.obj.ETag),
 		row("Class:", m.obj.StorageClass),
-		row("Owner:", ownerStr),
 		row("Modified:", m.obj.LastModified.Format("2006-01-02 15:04")),
-	}
+	)
 
-	// Custom metadata section
+	// ── Owner ──
+	rows = append(rows, "", sectionTitle("Owner"), "")
+	rows = append(rows, row("Owner:", ownerStr))
+
+	// ── Custom Metadata ──
+	rows = append(rows, "", sectionTitle("Metadata"), "")
 	if len(m.obj.Metadata) > 0 {
-		rows = append(rows, "")
-		metaLabel := style.Default.HelpKey.Render("Metadata:")
-		rows = append(rows, metaLabel)
-		indent := style.Default.CardDesc
 		for k, v := range m.obj.Metadata {
-			kv := indent.Render(fmt.Sprintf("  %s: %s", k, v))
+			kv := dimStyle.Render(fmt.Sprintf("  %s: %s", k, v))
 			rows = append(rows, kv)
 		}
 	} else {
-		rows = append(rows, "", row("Metadata:", "-"))
+		rows = append(rows, dimStyle.Render("  No custom metadata"))
 	}
 
-	return strings.Join(rows, "\n")
+	// Wrap the full content in a subtle background tint
+	content := strings.Join(rows, "\n")
+	return lipgloss.NewStyle().
+		Width(width).
+		Render(content)
 }

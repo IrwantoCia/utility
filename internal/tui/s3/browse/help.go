@@ -4,6 +4,7 @@ package browse
 import (
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
+	"charm.land/lipgloss/v2"
 )
 
 // KeyMap holds key bindings for the browse page.
@@ -22,14 +23,14 @@ type KeyMap struct {
 
 // DefaultKeyMap is the default set of key bindings for the browse page.
 var DefaultKeyMap = KeyMap{
-	Up:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/↓/j/k", "navigate")),
-	Down:   key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↑/↓/j/k", "navigate")),
+	Up:   key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
+	Down: key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
 	Left:   key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/→/h/l", "panel")),
 	Right:  key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("←/→/h/l", "panel")),
 	Enter:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
 	Esc:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
-	PgUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("^U", "pg up")),
-	PgDown:    key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("^D", "pg down")),
+	PgUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "pg up")),
+	PgDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "pg down")),
 	Filter:    key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 	Backspace: key.NewBinding(key.WithKeys("backspace"), key.WithHelp("⌫", "del")),
 }
@@ -43,3 +44,26 @@ func (km KeyMap) FullHelp() [][]key.Binding {
 }
 
 var _ help.KeyMap = KeyMap{}
+
+// BrowseHelpStyles returns a help.Styles configured with the browse theme:
+// keys in amber, descriptions in slate, separators in dark gray.
+func BrowseHelpStyles() help.Styles {
+	return help.Styles{
+		Ellipsis: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+		ShortKey: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("45")).
+			Bold(true),
+		ShortDesc: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("250")),
+		ShortSeparator: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+		FullKey: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("45")).
+			Bold(true),
+		FullDesc: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("250")),
+		FullSeparator: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+	}
+}

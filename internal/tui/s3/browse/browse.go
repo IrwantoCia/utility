@@ -10,11 +10,13 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
 	s3helper "github.com/IrwantoCia/utility/internal/helper/s3"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse/buckets"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse/metadata"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse/objects"
+	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
 // BackToS3MenuMsg tells the S3 coordinator to return to the S3 sub-menu.
@@ -65,13 +67,15 @@ var _ common.Component = (*Browse)(nil)
 
 // New creates a new Browse coordinator.
 func New(client *s3helper.S3, clientErr error) *Browse {
+	hm := help.New()
+	hm.Styles = BrowseHelpStyles()
 	return &Browse{
 		buckets:     buckets.New(),
 		objects:     objects.New(),
 		metadata:    metadata.New(),
 		focus:       focusBuckets,
 		keys:        DefaultKeyMap,
-		helpModel:   help.New(),
+		helpModel:   hm,
 		client:      client,
 		clientError: clientErr,
 	}
@@ -125,8 +129,8 @@ func (b *Browse) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	b.midW   = ws.Width * 45 / 100
 	b.rightW = ws.Width - b.leftW - b.midW
 
-	leftWS  := tea.WindowSizeMsg{Width: b.leftW - 2, Height: b.innerH}
-	midWS   := tea.WindowSizeMsg{Width: b.midW - 2, Height: b.innerH}
+	leftWS  := tea.WindowSizeMsg{Width: b.leftW - 4, Height: b.innerH}
+	midWS   := tea.WindowSizeMsg{Width: b.midW - 4, Height: b.innerH}
 
 	return tea.Batch(
 		b.buckets.Resize(leftWS),
@@ -141,10 +145,17 @@ func (b *Browse) View() string {
 		if b.clientError != nil {
 			msg = "Error: " + b.clientError.Error()
 		}
+		errStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("203")).
+			Bold(true)
+		hintStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("252"))
 		return lipgloss.NewStyle().
 			Width(b.lastWindow.Width).Height(b.lastWindow.Height).
 			AlignHorizontal(lipgloss.Center).AlignVertical(lipgloss.Center).
-			Render(msg + "\n\nPress Esc to go back")
+			Render(errStyle.Render("✖  S3 Client Unavailable") +
+				"\n\n" + hintStyle.Render(msg) +
+				"\n\n" + hintStyle.Render("Press Esc to go back"))
 	}
 
 	middle := b.renderPanels()
@@ -154,16 +165,17 @@ func (b *Browse) View() string {
 
 // renderPanels builds the three bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
+	bucketTitle := "Buckets"
 	objectTitle := "Objects"
 	if b.objects.FilterActive() {
-		objectTitle = fmt.Sprintf("Objects ▸ %s [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
+		objectTitle = fmt.Sprintf("Objects  🔍  %s  [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
 	} else if b.objects.Filter() != "" {
-		objectTitle = fmt.Sprintf("Objects ▸ %s [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
+		objectTitle = fmt.Sprintf("Objects  ◂ %s  [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
 	}
 
-	bucketView   := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == focusBuckets, "Buckets")
-	objectView   := b.wrapPanel(b.objects.View(), b.midW, b.focus == focusObjects, objectTitle)
-	metadataView := b.wrapPanel(b.metadata.View(b.rightW-4), b.rightW, false, "Metadata")
+	bucketView   := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == focusBuckets, false, bucketTitle)
+	objectView   := b.wrapPanel(b.objects.View(), b.midW, b.focus == focusObjects, b.objects.FilterActive(), objectTitle)
+	metadataView := b.wrapPanel(b.metadata.View(b.rightW-4), b.rightW, false, false, "Metadata")
 	return lipgloss.JoinHorizontal(lipgloss.Top, bucketView, objectView, metadataView)
 }
 
@@ -183,27 +195,47 @@ func (b *Browse) syncMetadata() {
 	b.metadata.SetObject(nil)
 }
 
-// wrapPanel surrounds content with a single bordered container with a banner title.
-// Total panel height = b.innerH + 3 (top border + banner + content + bottom border).
-func (b *Browse) wrapPanel(content string, w int, active bool, title string) string {
-	activeColor := lipgloss.Color("63")
-	inactiveColor := lipgloss.Color("240")
-
-	borderColor := inactiveColor
-	if active {
-		borderColor = activeColor
-	}
-
+// wrapPanel surrounds content with a single bordered container with a title banner.
+// When active, the panel uses bright cyan accent; when inactive, muted gray.
+// When filterActive is true, a bright magenta border is used regardless of focus.
+func (b *Browse) wrapPanel(content string, w int, active bool, filterActive bool, title string) string {
 	innerW := w - 4 // 2 for border + 2 for Padding(0,1)
 
-	bannerStyle := lipgloss.NewStyle().
-		Width(innerW).
-		Background(borderColor).
-		Foreground(lipgloss.Color("255")).
-		Bold(true).
-		Padding(0, 1)
+	bannerStyle := lipgloss.NewStyle()
+	borderStyle := lipgloss.NewStyle()
 
-	banner := bannerStyle.Render(title)
+	switch {
+	case filterActive:
+		borderStyle = style.Default.BrowseFilterBorder
+		bannerStyle = lipgloss.NewStyle().
+			Width(innerW).
+			Background(lipgloss.Color("206")).
+			Foreground(lipgloss.Color("0")).
+			Bold(true).
+			Padding(0, 1)
+	case active:
+		borderStyle = style.Default.BrowseBorderActive
+		bannerStyle = lipgloss.NewStyle().
+			Width(innerW).
+			Background(lipgloss.Color("45")).
+			Foreground(lipgloss.Color("0")).
+			Bold(true).
+			Padding(0, 1)
+	default:
+		borderStyle = style.Default.BrowseBorderInactive
+		bannerStyle = lipgloss.NewStyle().
+			Width(innerW).
+			Background(lipgloss.Color("238")).
+			Foreground(lipgloss.Color("250")).
+			Padding(0, 1)
+	}
+
+	// Prefix icon for focused panel title
+	prefix := ""
+	if active {
+		prefix = "◈ "
+	}
+	banner := bannerStyle.Render(prefix + title)
 
 	contentStyle := lipgloss.NewStyle().
 		Width(innerW).
@@ -215,8 +247,7 @@ func (b *Browse) wrapPanel(content string, w int, active bool, title string) str
 
 	return lipgloss.NewStyle().
 		Width(w).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
+		Inherit(borderStyle).
 		Padding(0, 1).
 		Render(inner)
 }
