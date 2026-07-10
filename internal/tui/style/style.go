@@ -32,9 +32,10 @@ type Styles struct {
 	EnvValueExample   lipgloss.Style
 	EnvStatusSet      lipgloss.Style
 	EnvStatusMissing  lipgloss.Style
-	StatusBox   lipgloss.Style
-	StatusText  lipgloss.Style
-	StatusError lipgloss.Style
+	HelpKey       lipgloss.Style
+	StatusBox     lipgloss.Style
+	StatusText    lipgloss.Style
+	StatusError   lipgloss.Style
 	StatusSuccess lipgloss.Style
 }
 
@@ -124,6 +125,9 @@ func DefaultStyles() Styles {
 		EnvStatusSet: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("46")),
 		EnvStatusMissing: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")),
+		HelpKey: lipgloss.NewStyle().
+			Bold(true).
 			Foreground(lipgloss.Color("240")),
 		StatusBox: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

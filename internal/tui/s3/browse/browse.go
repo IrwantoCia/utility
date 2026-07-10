@@ -13,6 +13,7 @@ import (
 	s3helper "github.com/IrwantoCia/utility/internal/helper/s3"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse/buckets"
+	"github.com/IrwantoCia/utility/internal/tui/s3/browse/metadata"
 	"github.com/IrwantoCia/utility/internal/tui/s3/browse/objects"
 )
 
@@ -25,9 +26,10 @@ type bucketsLoadedMsg struct {
 }
 
 type objectsLoadedMsg struct {
-	keys   []string
-	err    error
-	bucket string
+	keys    []string
+	objects []s3helper.Object // full objects for metadata
+	err     error
+	bucket  string
 }
 
 type panelFocus int
@@ -42,15 +44,18 @@ type Browse struct {
 	buckets *buckets.Buckets
 	objects *objects.Objects
 
+	metadata   *metadata.Metadata
+	allObjects []s3helper.Object // full object list for metadata lookup
+
 	focus      panelFocus
 	lastWindow tea.WindowSizeMsg
 	keys       KeyMap
 	helpModel  help.Model
 
 	// Computed layout dimensions.
-	leftW, rightW int
-	footerH       int
-	innerH        int // content height for sub-panels (inside borders)
+	leftW, midW, rightW int
+	footerH             int
+	innerH              int // content height for sub-panels (inside borders)
 
 	client      *s3helper.S3 // S3 client (nil if not configured)
 	clientError error        // client init error
@@ -63,6 +68,7 @@ func New(client *s3helper.S3, clientErr error) *Browse {
 	return &Browse{
 		buckets:     buckets.New(),
 		objects:     objects.New(),
+		metadata:    metadata.New(),
 		focus:       focusBuckets,
 		keys:        DefaultKeyMap,
 		helpModel:   help.New(),
@@ -98,12 +104,12 @@ func loadBuckets(client *s3helper.S3) tea.Cmd {
 func loadObjects(client *s3helper.S3, bucket string) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
-		objects, err := client.ListObjects(ctx, bucket, "")
-		keys := make([]string, 0, len(objects))
-		for _, o := range objects {
+		result, err := client.ListObjects(ctx, bucket, "")
+		keys := make([]string, 0, len(result))
+		for _, o := range result {
 			keys = append(keys, o.Key)
 		}
-		return objectsLoadedMsg{keys: keys, err: err, bucket: bucket}
+		return objectsLoadedMsg{keys: keys, objects: result, err: err, bucket: bucket}
 	}
 }
 
@@ -115,15 +121,16 @@ func (b *Browse) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	b.footerH = 1
 	b.innerH = ws.Height - b.footerH - 3 // 3 = top border + banner + bottom border
 
-	b.leftW = ws.Width * 25 / 100
-	b.rightW = ws.Width - b.leftW
+	b.leftW  = ws.Width * 25 / 100
+	b.midW   = ws.Width * 45 / 100
+	b.rightW = ws.Width - b.leftW - b.midW
 
-	leftWS := tea.WindowSizeMsg{Width: b.leftW - 2, Height: b.innerH}
-	rightWS := tea.WindowSizeMsg{Width: b.rightW - 2, Height: b.innerH}
+	leftWS  := tea.WindowSizeMsg{Width: b.leftW - 2, Height: b.innerH}
+	midWS   := tea.WindowSizeMsg{Width: b.midW - 2, Height: b.innerH}
 
 	return tea.Batch(
 		b.buckets.Resize(leftWS),
-		b.objects.Resize(rightWS),
+		b.objects.Resize(midWS),
 	)
 }
 
@@ -145,17 +152,35 @@ func (b *Browse) View() string {
 	return lipgloss.JoinVertical(lipgloss.Left, middle, helpStr)
 }
 
-// renderPanels builds the two bordered panels joined horizontally.
+// renderPanels builds the three bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
-	bucketView := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == focusBuckets, "Buckets")
 	objectTitle := "Objects"
 	if b.objects.FilterActive() {
 		objectTitle = fmt.Sprintf("Objects ▸ %s [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
 	} else if b.objects.Filter() != "" {
 		objectTitle = fmt.Sprintf("Objects ▸ %s [%d/%d]", b.objects.Filter(), len(b.objects.Items()), b.objects.TotalItems())
 	}
-	objectView := b.wrapPanel(b.objects.View(), b.rightW, b.focus == focusObjects, objectTitle)
-	return lipgloss.JoinHorizontal(lipgloss.Top, bucketView, objectView)
+
+	bucketView   := b.wrapPanel(b.buckets.View(), b.leftW, b.focus == focusBuckets, "Buckets")
+	objectView   := b.wrapPanel(b.objects.View(), b.midW, b.focus == focusObjects, objectTitle)
+	metadataView := b.wrapPanel(b.metadata.View(b.rightW-4), b.rightW, false, "Metadata")
+	return lipgloss.JoinHorizontal(lipgloss.Top, bucketView, objectView, metadataView)
+}
+
+// syncMetadata updates the metadata panel to show the currently selected object.
+func (b *Browse) syncMetadata() {
+	selected := b.objects.Selected()
+	if selected == "" || len(b.allObjects) == 0 {
+		b.metadata.SetObject(nil)
+		return
+	}
+	for i := range b.allObjects {
+		if b.allObjects[i].Key == selected {
+			b.metadata.SetObject(&b.allObjects[i])
+			return
+		}
+	}
+	b.metadata.SetObject(nil)
 }
 
 // wrapPanel surrounds content with a single bordered container with a banner title.
@@ -215,9 +240,11 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	if msg, ok := msg.(objectsLoadedMsg); ok {
+		b.allObjects = msg.objects
 		if msg.err == nil && len(msg.keys) > 0 {
 			b.objects.SetItems(msg.keys)
 		}
+		b.syncMetadata()
 		return nil
 	}
 
@@ -259,6 +286,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			}
 			if b.focus == focusObjects {
 				b.objects.MoveUp()
+				b.syncMetadata()
 			}
 			return nil
 		}
@@ -268,6 +296,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			}
 			if b.focus == focusObjects {
 				b.objects.MoveDown()
+				b.syncMetadata()
 			}
 			return nil
 		}
@@ -277,6 +306,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			}
 			if b.focus == focusObjects {
 				b.objects.PageUp()
+				b.syncMetadata()
 			}
 			return nil
 		}
@@ -286,6 +316,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			}
 			if b.focus == focusObjects {
 				b.objects.PageDown()
+				b.syncMetadata()
 			}
 			return nil
 		}
@@ -301,9 +332,11 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			if b.focus == focusBuckets {
 				selected := b.buckets.Selected()
 				if selected != "" && b.client != nil {
-				b.objects.SetItems([]string{})
-				b.focus = focusObjects
-				return loadObjects(b.client, selected)
+					b.objects.SetItems([]string{})
+					b.focus = focusObjects
+					b.allObjects = nil
+					b.metadata.SetObject(nil)
+					return loadObjects(b.client, selected)
 				}
 			}
 			return nil

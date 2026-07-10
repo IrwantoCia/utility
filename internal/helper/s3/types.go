@@ -14,9 +14,20 @@ type Bucket struct {
 	Name string
 }
 
+// Owner represents the owner of an S3 object.
+type Owner struct {
+	ID          string
+	DisplayName string
+}
+
 // Object represents an object in a bucket.
 type Object struct {
 	Key          string
 	Size         int64
 	LastModified time.Time
+	ETag         string
+	ContentType  string
+	StorageClass string
+	Owner        Owner
+	Metadata     map[string]string // user-defined metadata tags
 }

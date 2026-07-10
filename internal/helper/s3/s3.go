@@ -98,6 +98,14 @@ func (s *S3) ListObjects(ctx context.Context, bucket, prefix string) ([]Object, 
 			Key:          obj.Key,
 			Size:         obj.Size,
 			LastModified: obj.LastModified,
+			ETag:         obj.ETag,
+			ContentType:  obj.ContentType,
+			StorageClass: obj.StorageClass,
+			Owner: Owner{
+				ID:          obj.Owner.ID,
+				DisplayName: obj.Owner.DisplayName,
+			},
+			Metadata: obj.UserMetadata,
 		})
 	}
 	return objects, nil
