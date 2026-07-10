@@ -19,6 +19,7 @@ type Objects struct {
 	cursor       int
 	maxVisible   int
 	offset       int
+	maxWidth     int // available content width from Resize
 }
 
 var _ common.Component = (*Objects)(nil)
@@ -114,6 +115,7 @@ func (o *Objects) Init() tea.Cmd { return nil }
 // Resize sets the maximum visible rows based on window height.
 func (o *Objects) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	o.maxVisible = ws.Height - 2
+	o.maxWidth = ws.Width
 	return nil
 }
 
@@ -140,7 +142,15 @@ func (o *Objects) View() string {
 				icon = "\U0001F4C1 " // 📁 folder
 			}
 
-			line := cursor + icon + item
+			prefix := cursor + icon
+			prefixWidth := len(prefix)
+			available := o.maxWidth - prefixWidth
+			if available < 4 {
+				available = 4
+			}
+			displayName := truncate(item, available)
+
+			line := prefix + displayName
 			if i == o.cursor {
 				line = style.Default.Highlighted.Render(line)
 			}
@@ -150,6 +160,25 @@ func (o *Objects) View() string {
 	}
 
 	return style.Default.CardDesc.Render("Select a bucket")
+}
+
+// truncate shortens s to fit within maxWidth visual columns, appending "…"
+// when truncated. Uses len(s) as a proxy for visual width (accurate for ASCII).
+func truncate(s string, maxWidth int) string {
+	if len(s) <= maxWidth {
+		return s
+	}
+	// Leave room for "…" (3 bytes in UTF-8, 1 visual column)
+	limit := maxWidth - 1
+	if limit <= 0 {
+		return "…"
+	}
+	// Cut at byte boundary — safe for ASCII, may break multi-byte runes.
+	// For filenames this is acceptable (keys are typically ASCII).
+	if limit > len(s) {
+		limit = len(s)
+	}
+	return s[:limit] + "…"
 }
 
 // Items returns the current object list (useful for the status bar).
