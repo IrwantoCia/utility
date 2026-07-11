@@ -3,6 +3,7 @@
 package parser
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -10,6 +11,9 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/IrwantoCia/utility/internal/helper/spritz"
+	"github.com/IrwantoCia/utility/internal/helper/spritz/markdown"
+	"github.com/IrwantoCia/utility/internal/helper/spritz/text"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/components/filepicker"
 	"github.com/IrwantoCia/utility/internal/tui/style"
@@ -42,6 +46,12 @@ const (
 	cursorStartParse
 )
 
+// parseDoneMsg signals that an async parse has completed.
+type parseDoneMsg struct {
+	tokens []spritz.Token
+	err    error
+}
+
 // Option describes a single card in the parser menu.
 type Option struct {
 	Label       string
@@ -59,6 +69,7 @@ type Parser struct {
 	picker       *filepicker.FilePicker
 	pickerOpen   bool
 	selectedFile string
+	tokens       []spritz.Token
 	statusText   string
 	statusType   StatusType
 	lastWindow   tea.WindowSizeMsg
@@ -86,6 +97,24 @@ func New() *Parser {
 		keys:      DefaultKeyMap,
 		helpModel: help.New(),
 		picker:    filepicker.New(),
+	}
+}
+
+// parserFor returns the appropriate Parser implementation for a file path.
+func parserFor(path string) spritz.Parser {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext == ".md" || ext == ".markdown" {
+		return markdown.New()
+	}
+	return text.New()
+}
+
+// doParse runs the parser asynchronously and returns a parseDoneMsg.
+func doParse(filePath string) tea.Cmd {
+	return func() tea.Msg {
+		p := parserFor(filePath)
+		tokens, err := p.Parse(filePath)
+		return parseDoneMsg{tokens: tokens, err: err}
 	}
 }
 
@@ -234,6 +263,19 @@ func (p *Parser) View() string {
 
 // Update handles keyboard input and picker delegation.
 func (p *Parser) Update(msg tea.Msg) tea.Cmd {
+	// Handle async parse result
+	if done, ok := msg.(parseDoneMsg); ok {
+		if done.err != nil {
+			p.statusText = "❌ " + done.err.Error()
+			p.statusType = StatusError
+		} else {
+			p.tokens = done.tokens
+			p.statusText = fmt.Sprintf("✅ %d tokens, %.0f words", len(done.tokens), float64(len(done.tokens)))
+			p.statusType = StatusSuccess
+		}
+		return nil
+	}
+
 	// When the file picker is open, delegate all input to it.
 	if p.pickerOpen {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
@@ -268,17 +310,23 @@ func (p *Parser) Update(msg tea.Msg) tea.Cmd {
 				p.picker.SelectedFile = ""
 				p.pickerOpen = true
 				return p.picker.Init()
-			case cursorStartParse:
-				if p.selectedFile == "" {
-					p.statusText = "⚠ No file selected"
-					p.statusType = StatusError
-				} else {
-					p.statusText = "📖 Parsing: " + filepath.Base(p.selectedFile)
-					p.statusType = StatusInfo
-				}
+		case cursorStartParse:
+			if p.selectedFile == "" {
+				p.statusText = "⚠ No file selected"
+				p.statusType = StatusError
+			} else {
+				p.statusText = "📖 Parsing: " + filepath.Base(p.selectedFile)
+				p.statusType = StatusInfo
+				return doParse(p.selectedFile)
+			}
 			}
 		}
 	}
 
 	return nil
+}
+
+// Tokens returns the parsed tokens (nil if not yet parsed).
+func (p *Parser) Tokens() []spritz.Token {
+	return p.tokens
 }
