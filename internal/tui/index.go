@@ -13,6 +13,7 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/csv"
 	"github.com/IrwantoCia/utility/internal/tui/s3"
+	"github.com/IrwantoCia/utility/internal/tui/spritz"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 	"github.com/IrwantoCia/utility/internal/tui/transcribe"
 )
@@ -155,6 +156,7 @@ func Run() {
 		menus: []menu{
 			{name: "CSV", component: csv.New()},
 			{name: "S3", component: s3.New()},
+			{name: "Spritz", component: spritz.New()},
 			{name: "Transcribe", component: transcribe.New()},
 		},
 	}
