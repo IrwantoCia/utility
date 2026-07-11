@@ -25,6 +25,16 @@ const (
 	TypeAction
 )
 
+// StatusType classifies the parser status message.
+type StatusType int
+
+const (
+	StatusNone    StatusType = iota // no status shown
+	StatusInfo                      // informational (e.g., "Parsing...")
+	StatusError                     // error (e.g., "File not found")
+	StatusSuccess                   // success (e.g., "245 tokens parsed")
+)
+
 type cursorPos int
 
 const (
@@ -49,7 +59,8 @@ type Parser struct {
 	picker       *filepicker.FilePicker
 	pickerOpen   bool
 	selectedFile string
-	parseResult  string
+	statusText   string
+	statusType   StatusType
 	lastWindow   tea.WindowSizeMsg
 }
 
@@ -178,12 +189,22 @@ func (p *Parser) View() string {
 	contentBuilder.WriteString("\n")
 	contentBuilder.WriteString(cardStack)
 
-	if p.parseResult != "" {
+	if p.statusType != StatusNone {
+		var statusStyle lipgloss.Style
+		switch p.statusType {
+		case StatusError:
+			statusStyle = style.Default.StatusError
+		case StatusSuccess:
+			statusStyle = style.Default.StatusSuccess
+		default:
+			statusStyle = style.Default.StatusText
+		}
+
 		contentBuilder.WriteString("\n\n")
-		statusLine := style.Default.StatusSuccess.
+		statusLine := statusStyle.
 			AlignHorizontal(lipgloss.Center).
 			Width(p.lastWindow.Width).
-			Render(p.parseResult)
+			Render(p.statusText)
 		contentBuilder.WriteString(statusLine)
 	}
 
@@ -225,7 +246,7 @@ func (p *Parser) Update(msg tea.Msg) tea.Cmd {
 		cmd := p.picker.Update(msg)
 		if p.picker.SelectedFile != "" {
 			p.selectedFile = p.picker.SelectedFile
-			p.parseResult = ""
+			p.statusType = StatusNone
 			p.pickerOpen = false
 		}
 		return cmd
@@ -248,8 +269,12 @@ func (p *Parser) Update(msg tea.Msg) tea.Cmd {
 				p.pickerOpen = true
 				return p.picker.Init()
 			case cursorStartParse:
-				if p.selectedFile != "" {
-					p.parseResult = "✅ Parsed: " + filepath.Base(p.selectedFile)
+				if p.selectedFile == "" {
+					p.statusText = "⚠ No file selected"
+					p.statusType = StatusError
+				} else {
+					p.statusText = "📖 Parsing: " + filepath.Base(p.selectedFile)
+					p.statusType = StatusInfo
 				}
 			}
 		}
