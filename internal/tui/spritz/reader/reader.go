@@ -40,7 +40,7 @@ type tickMsg struct{}
 type OptionType int
 
 const (
-	TypeInput  OptionType = iota
+	TypeInput OptionType = iota
 	TypeAction
 )
 
@@ -93,7 +93,7 @@ func New() *Reader {
 		state: stateMenu,
 		options: []Option{
 			{Label: "Select File", Description: "Choose from .spritz/ cache", Icon: "📂", Type: TypeInput},
-			{Label: "Start", Description: "Begin RSVP reading", Icon: "▶️", Type: TypeAction},
+			{Label: "Start", Description: "Begin RSVP reading", Icon: "►", Type: TypeAction},
 		},
 		picker:    listpicker.New(),
 		sdReader:  spritzreader.New(),
@@ -138,8 +138,8 @@ func (r *Reader) rsvpView() string {
 	w := r.lastWindow.Width
 
 	// Word display — prefix + ORP(red) + suffix, all centered
-	orpStyle := style.Default.StatusError.Copy().Bold(true)
-	wordStyle := style.Default.MenuTitle.Copy().Bold(true)
+	orpStyle := style.Default.StatusError.Bold(true)
+	wordStyle := style.Default.MenuTitle.Bold(true)
 
 	wordLine := wordStyle.Render(r.prefix) + orpStyle.Render(r.orp) + wordStyle.Render(r.suffix)
 	if r.orp == "" {
@@ -234,7 +234,7 @@ func (r *Reader) menuView() string {
 			)
 		}
 
-		descLine := "   " + descStyle.Render(opt.Description)
+		descLine := "    " + descStyle.Render(opt.Description)
 		cardContent := lipgloss.JoinVertical(lipgloss.Left, titleLine, descLine)
 
 		borderColor := lipgloss.Color("240")

@@ -174,7 +174,7 @@ func (p *Parser) View() string {
 			)
 		}
 
-		descLine := "   " + descStyle.Render(opt.Description)
+		descLine := "    " + descStyle.Render(opt.Description)
 
 		cardContent := lipgloss.JoinVertical(lipgloss.Left,
 			titleLine,
