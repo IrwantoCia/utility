@@ -4,6 +4,7 @@ package helper
 
 import (
 	"encoding/json"
+	"io/fs"
 	"math"
 	"os"
 	"path/filepath"
@@ -187,4 +188,48 @@ func SaveCache(cachePath string, tokens []spritz.Token) {
 func SaveContent(path string, content []byte) {
 	_ = os.MkdirAll(filepath.Dir(path), 0755)
 	_ = os.WriteFile(path, content, 0644)
+}
+
+// ListCached walks the .spritz/ cache directory and returns the
+// reconstructed source file paths for all cached entries. Returns
+// (empty slice, nil) when .spritz/ does not exist.
+func ListCached() ([]string, error) {
+	var sources []string
+	err := filepath.Walk(".spritz", func(walkPath string, info fs.FileInfo, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), ".spritz.json") {
+			return nil
+		}
+
+		// Walk path: .spritz/<rel-dir>/<name-no-ext>/<name>.spritz.json
+		// Reconstruct source: <rel-dir>/<name>
+		rel := strings.TrimPrefix(walkPath, ".spritz/")
+		rel = strings.TrimSuffix(rel, ".spritz.json")
+
+		dir := filepath.Dir(rel)
+		file := filepath.Base(rel)
+
+		parentDir := filepath.Dir(dir)
+		if parentDir == "." {
+			sources = append(sources, file)
+		} else {
+			sources = append(sources, filepath.Join(parentDir, file))
+		}
+		return nil
+	})
+	if err != nil {
+		if os.IsNotExist(err) {
+			return sources, nil
+		}
+		return nil, err
+	}
+	return sources, nil
 }

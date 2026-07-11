@@ -306,10 +306,10 @@ func (p *Parser) Update(msg tea.Msg) tea.Cmd {
 			p.cursor = (p.cursor + 1) % cursorPos(len(p.options))
 		case key.Matches(keyMsg, p.keys.Enter):
 			switch p.cursor {
-			case cursorSelectFile:
-				p.picker.SelectedFile = ""
-				p.pickerOpen = true
-				return p.picker.Init()
+		case cursorSelectFile:
+			p.picker.SelectedFile = ""
+			p.pickerOpen = true
+			return p.picker.Init()
 		case cursorStartParse:
 			if p.selectedFile == "" {
 				p.statusText = "⚠ No file selected"
