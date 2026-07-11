@@ -137,14 +137,19 @@ func (r *Reader) rsvpView() string {
 	availH := r.lastWindow.Height - helpH
 	w := r.lastWindow.Width
 
-	// Word display — prefix + ORP(red) + suffix, all centered
+	// Word display — big, bold, centered
 	orpStyle := style.Default.StatusError.Bold(true)
-	wordStyle := style.Default.MenuTitle.Bold(true)
+	wordStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255"))
 
-	wordLine := wordStyle.Render(r.prefix) + orpStyle.Render(r.orp) + wordStyle.Render(r.suffix)
-	if r.orp == "" {
-		wordLine = wordStyle.Render(r.prefix + r.suffix)
+	var wordContent string
+	if r.orp != "" {
+		wordContent = wordStyle.Render(r.prefix) + orpStyle.Render(r.orp) + wordStyle.Render(r.suffix)
+	} else {
+		wordContent = wordStyle.Render(r.prefix + r.suffix)
 	}
+
+	wordLine := lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(w).Render(wordContent)
+	wordBlock := "\n\n" + wordLine + "\n" // vertical padding for bigger appearance
 
 	// Progress bar
 	pct := r.sdReader.Progress()
@@ -168,8 +173,8 @@ func (r *Reader) rsvpView() string {
 	}
 	infoLine := style.Default.StatusText.Width(w).AlignHorizontal(lipgloss.Center).Render(info)
 
-	// Vertical centering for the word block
-	wordBlockH := lipgloss.Height(wordLine)
+	// Vertical centering
+	wordBlockH := lipgloss.Height(wordBlock)
 	infoBlockH := 3 // progress bar + spacing + info
 	totalH := wordBlockH + infoBlockH
 	topPad := (availH - totalH) / 2
@@ -181,8 +186,7 @@ func (r *Reader) rsvpView() string {
 	for range topPad {
 		s.WriteRune('\n')
 	}
-	s.WriteString(lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(w).Render(wordLine))
-	s.WriteRune('\n')
+	s.WriteString(wordBlock)
 	s.WriteString(progBar)
 	s.WriteRune('\n')
 	s.WriteString(infoLine)
