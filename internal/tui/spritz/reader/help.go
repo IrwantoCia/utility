@@ -25,7 +25,7 @@ var DefaultKeyMap = KeyMap{
 	Up:    key.NewBinding(key.WithKeys("k", "up"), key.WithHelp("k/↑", "up")),
 	Down:  key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/↓", "down")),
 	Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
-	Space: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "play/pause")),
+	Space: key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "play/pause")),
 	Plus:  key.NewBinding(key.WithKeys("=", "+"), key.WithHelp("+", "faster")),
 	Minus: key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "slower")),
 	Next:  key.NewBinding(key.WithKeys("j", "right"), key.WithHelp("j/→", "next word")),
