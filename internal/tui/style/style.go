@@ -16,6 +16,7 @@ type Styles struct {
 	MenuItemSelected lipgloss.Style
 	MenuTitle        lipgloss.Style
 	MenuHint         lipgloss.Style
+	MenuDesc         lipgloss.Style
 	MenuContainer    lipgloss.Style
 	CardIcon          lipgloss.Style
 	CardIconInput     lipgloss.Style
@@ -95,6 +96,9 @@ func DefaultStyles() Styles {
 		MenuHint: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("240")).
 			AlignHorizontal(lipgloss.Center).
+			Italic(true),
+		MenuDesc: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
 			Italic(true),
 		MenuContainer: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).

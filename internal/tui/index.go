@@ -19,8 +19,9 @@ import (
 )
 
 type menu struct {
-	name      string
-	component common.Component
+	name        string
+	description string
+	component   common.Component
 }
 
 type model struct {
@@ -129,11 +130,20 @@ func view(m model) string {
 	menuContent := lipgloss.JoinVertical(lipgloss.Left, items...)
 	menuBox := style.Default.MenuContainer.Render(menuContent)
 
-	content := lipgloss.JoinVertical(lipgloss.Center,
-		banner,
-		"",
-		menuBox,
-	)
+	// Description box below menu
+	var descBox string
+	if m.cursor >= 0 && m.cursor < len(m.menus) {
+		desc := m.menus[m.cursor].description
+		if desc != "" {
+			descBox = style.Default.StatusBox.Render(style.Default.MenuDesc.Render(desc))
+		}
+	}
+
+	parts := []string{banner, "", menuBox}
+	if descBox != "" {
+		parts = append(parts, "", descBox)
+	}
+	content := lipgloss.JoinVertical(lipgloss.Center, parts...)
 
 	if m.lastWindow.Width > 0 {
 		content = lipgloss.Place(
@@ -154,10 +164,10 @@ func Run() {
 		help:   help.New(),
 		keys:   DefaultKeyMap,
 		menus: []menu{
-			{name: "CSV", component: csv.New()},
-			{name: "S3", component: s3.New()},
-			{name: "Spritz", component: spritz.New()},
-			{name: "Transcribe", component: transcribe.New()},
+			{name: "CSV", description: "View and search CSV files with table display", component: csv.New()},
+			{name: "S3", description: "Browse and manage S3 buckets and objects", component: s3.New()},
+			{name: "Spritz", description: "RSVP speed reading — word by word", component: spritz.New()},
+			{name: "Transcribe", description: "Speech-to-text transcription", component: transcribe.New()},
 		},
 	}
 	p := tea.NewProgram(m)
