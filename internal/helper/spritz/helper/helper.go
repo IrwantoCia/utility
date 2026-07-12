@@ -233,3 +233,67 @@ func ListCached() ([]string, error) {
 	}
 	return sources, nil
 }
+
+// Chunkify groups tokens into phrase-aware chunks (2 to maxWords words each).
+// Breaks occur on: sentence end (.!?), clause punctuation (,:;), or conjunctions (and/but/or/nor/yet/so)
+// when the chunk already has 2+ words. Last chunk may be any size.
+func Chunkify(tokens []spritz.Token, maxWords int) []spritz.Chunk {
+	if maxWords < 2 {
+		maxWords = 2
+	}
+	var chunks []spritz.Chunk
+	var current []spritz.Token
+
+	for i, tok := range tokens {
+		current = append(current, tok)
+		isLast := i == len(tokens)-1
+
+		shouldBreak := false
+
+		if len(current) >= maxWords {
+			shouldBreak = true
+		} else if len(current) >= 2 {
+			word := strings.TrimRight(tok.Word, ".,;:!?\"'")
+			lastRune := rune(tok.Word[len(tok.Word)-1])
+
+			if lastRune == '.' || lastRune == '!' || lastRune == '?' {
+				shouldBreak = true
+			}
+			if lastRune == ',' || lastRune == ';' || lastRune == ':' {
+				shouldBreak = true
+			}
+			lower := strings.ToLower(word)
+			switch lower {
+			case "and", "but", "or", "nor", "yet", "so",
+				"that", "which", "who", "whom", "whose",
+				"if", "when", "where", "because", "since", "although", "while":
+				shouldBreak = true
+			}
+		}
+
+		if shouldBreak || isLast {
+			if len(current) > 0 {
+				chunks = append(chunks, makeChunk(current))
+				current = nil
+			}
+		}
+	}
+
+	return chunks
+}
+
+func makeChunk(tokens []spritz.Token) spritz.Chunk {
+	orpIdx := len(tokens) / 2
+	maxPause := 1
+	for _, t := range tokens {
+		if t.PauseFactor > maxPause {
+			maxPause = t.PauseFactor
+		}
+	}
+	return spritz.Chunk{
+		Tokens:      tokens,
+		ORPWordIdx:  orpIdx,
+		ORPCharIdx:  tokens[orpIdx].ORPIndex,
+		PauseFactor: maxPause,
+	}
+}

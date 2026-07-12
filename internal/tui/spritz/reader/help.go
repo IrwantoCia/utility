@@ -13,6 +13,7 @@ type KeyMap struct {
 	Down  key.Binding
 	Enter key.Binding
 	Space key.Binding
+	Chunk key.Binding
 	Plus  key.Binding
 	Minus key.Binding
 	Next  key.Binding
@@ -26,6 +27,7 @@ var DefaultKeyMap = KeyMap{
 	Down:  key.NewBinding(key.WithKeys("j", "down"), key.WithHelp("j/↓", "down")),
 	Enter: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
 	Space: key.NewBinding(key.WithKeys("space"), key.WithHelp("space", "play/pause")),
+	Chunk: key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "mode")),
 	Plus:  key.NewBinding(key.WithKeys("=", "+"), key.WithHelp("+", "faster")),
 	Minus: key.NewBinding(key.WithKeys("-"), key.WithHelp("-", "slower")),
 	Next:  key.NewBinding(key.WithKeys("j", "right"), key.WithHelp("j/→", "next word")),
@@ -33,7 +35,7 @@ var DefaultKeyMap = KeyMap{
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.Up, km.Down, km.Enter, km.Esc, km.Space, km.Plus, km.Minus, km.Next, km.Prev}
+	return []key.Binding{km.Up, km.Down, km.Enter, km.Esc, km.Space, km.Plus, km.Minus, km.Next, km.Prev, km.Chunk}
 }
 
 func (km KeyMap) FullHelp() [][]key.Binding {
