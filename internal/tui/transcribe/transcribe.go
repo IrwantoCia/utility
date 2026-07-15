@@ -3,14 +3,20 @@
 package transcribe
 
 import (
+	"context"
+	"fmt"
+	"path/filepath"
 	"strings"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	ffmpeghelper "github.com/IrwantoCia/utility/internal/helper/ffmpeg"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/components/filepicker"
+	"github.com/IrwantoCia/utility/internal/tui/components/progressbar"
+	"github.com/IrwantoCia/utility/internal/tui/components/statusbar"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
@@ -35,6 +41,18 @@ type Option struct {
 	Type        OptionType
 }
 
+type convertProgressMsg struct{ percent float64 }
+
+type convertDoneMsg struct {
+	outputPath string
+	err        error
+}
+
+type convertStartedMsg struct {
+	progressCh <-chan float64
+	doneCh     <-chan convertDoneMsg
+}
+
 type Transcribe struct {
 	options      []Option
 	cursor       cursorPos
@@ -44,6 +62,16 @@ type Transcribe struct {
 	pickerOpen   bool
 	selectedFile string
 	lastWindow   tea.WindowSizeMsg
+
+	ffmpeg       *ffmpeghelper.FFmpeg // lazy init on first use
+	status       *statusbar.StatusBar
+	converting   bool
+	convProgress float64
+	convOutput   string        // temp WAV path
+	convChannels convertStartedMsg // stored for re-chaining progress
+	convCancel   context.CancelFunc
+
+	progressBar *progressbar.ProgressBar
 }
 
 var _ common.Component = (*Transcribe)(nil)
@@ -64,9 +92,11 @@ func New() *Transcribe {
 				Type:        TypeAction,
 			},
 		},
-		keys:      DefaultKeyMap,
-		helpModel: help.New(),
-		picker:    filepicker.New(),
+		keys:          DefaultKeyMap,
+		helpModel:     help.New(),
+		picker:        filepicker.New(),
+		status:        statusbar.New(),
+		progressBar: progressbar.New(),
 	}
 }
 
@@ -75,6 +105,9 @@ func (t *Transcribe) Init() tea.Cmd { return nil }
 func (t *Transcribe) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	t.lastWindow = ws
 	t.helpModel, _ = t.helpModel.Update(ws)
+	cardWidth := max(40, ws.Width*60/100)
+	cardWidth = min(cardWidth, 60)
+	t.progressBar.SetWidth(cardWidth - 4)
 	return t.picker.Resize(ws)
 }
 
@@ -164,11 +197,29 @@ func (t *Transcribe) View() string {
 		Width(t.lastWindow.Width).
 		Render(Banner)
 
-	// Combine banner + cardStack
+	// Progress bar during conversion
+	var progressLine string
+	if t.converting {
+		progressLine = style.Default.CardTitle.Render("  " + t.progressBar.View())
+	}
+
+	// Status message box
+	msgBox := t.status.View(cardWidth)
+	if msgBox != "" {
+		msgBox = lipgloss.NewStyle().
+			AlignHorizontal(lipgloss.Center).
+			Width(t.lastWindow.Width).
+			Render(msgBox)
+	}
+
+	// Combine banner + cardStack + progress + status
 	content := lipgloss.JoinVertical(lipgloss.Center,
 		banner,
 		"",
 		cardStack,
+		"",
+		progressLine,
+		msgBox,
 	)
 
 	// Center vertically — compute top padding
@@ -209,7 +260,40 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		return cmd
 	}
 
+	switch msg := msg.(type) {
+	case convertStartedMsg:
+		t.convChannels = msg
+		return listenConvert(msg)
+	case convertProgressMsg:
+		t.convProgress = msg.percent
+		t.progressBar.SetPercent(msg.percent)
+		return listenConvert(t.convChannels)
+	case convertDoneMsg:
+		t.converting = false
+		t.convChannels = convertStartedMsg{}
+		if msg.err != nil {
+			t.status.SetError("Conversion failed: " + msg.err.Error())
+		} else {
+			t.convOutput = msg.outputPath
+			t.status.SetSuccess(fmt.Sprintf("Audio extracted: %s", msg.outputPath))
+		}
+		return nil
+	}
+
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+		// Lock navigation during conversion — only Esc allowed
+		if t.converting {
+			if key.Matches(keyMsg, t.keys.Esc) {
+				if t.convCancel != nil {
+					t.convCancel()
+				}
+				t.converting = false
+				t.status.SetInfo("Cancelled")
+				return nil
+			}
+			return nil
+		}
+
 		switch {
 		case key.Matches(keyMsg, t.keys.Esc):
 			return func() tea.Msg {
@@ -226,12 +310,72 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 				t.pickerOpen = true
 				return t.picker.Init()
 			case cursorTranscribe:
-				if t.selectedFile != "" {
-					return tea.Quit
+				if t.selectedFile == "" {
+					t.status.SetError("No file selected")
+					return nil
 				}
+				// Lazy init ffmpeg
+				if t.ffmpeg == nil {
+					var err error
+					t.ffmpeg, err = ffmpeghelper.New()
+					if err != nil {
+						t.status.SetError("FFmpeg not found: " + err.Error())
+						return nil
+					}
+				}
+				// Build output path in CWD
+				baseName := filepath.Base(t.selectedFile)
+				ext := filepath.Ext(baseName)
+				outputPath := strings.TrimSuffix(baseName, ext) + ".wav"
+
+				ctx, cancel := context.WithCancel(context.Background())
+				t.convCancel = cancel
+				t.converting = true
+				t.convProgress = 0
+				t.convOutput = ""
+				t.status.SetInfo("Extracting audio...")
+				return startConvert(ctx, t.ffmpeg, t.selectedFile, outputPath)
 			}
 		}
 	}
 
 	return nil
 }
+
+func startConvert(ctx context.Context, ff *ffmpeghelper.FFmpeg, inputPath, outputPath string) tea.Cmd {
+	return func() tea.Msg {
+		progressCh := make(chan float64, 50)
+		doneCh := make(chan convertDoneMsg, 1)
+
+		go func() {
+			err := ff.Convert(ctx, inputPath, outputPath, func(pct float64) {
+				progressCh <- pct
+			})
+			doneCh <- convertDoneMsg{outputPath: outputPath, err: err}
+			close(progressCh)
+		}()
+
+		return convertStartedMsg{progressCh: progressCh, doneCh: doneCh}
+	}
+}
+
+func listenConvert(started convertStartedMsg) tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case pct, ok := <-started.progressCh:
+			if ok {
+				return convertProgressMsg{percent: pct}
+			}
+			select {
+			case done := <-started.doneCh:
+				return done
+			default:
+				return nil
+			}
+		case done := <-started.doneCh:
+			return done
+		}
+	}
+}
+
+
