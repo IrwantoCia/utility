@@ -13,11 +13,13 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	ffmpeghelper "github.com/IrwantoCia/utility/internal/helper/ffmpeg"
+	"github.com/IrwantoCia/utility/internal/helper/whisper"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/components/filepicker"
 	"github.com/IrwantoCia/utility/internal/tui/components/progressbar"
 	"github.com/IrwantoCia/utility/internal/tui/components/statusbar"
 	"github.com/IrwantoCia/utility/internal/tui/style"
+	"github.com/IrwantoCia/utility/internal/tui/transcribe/settings"
 )
 
 type OptionType int
@@ -31,6 +33,7 @@ type cursorPos int
 
 const (
 	cursorSelectFile cursorPos = iota
+	cursorSettings
 	cursorTranscribe
 )
 
@@ -72,11 +75,29 @@ type Transcribe struct {
 	convCancel   context.CancelFunc
 
 	progressBar *progressbar.ProgressBar
+
+	// Coordinator state for sub-pages
+	activePage string // "" = menu, "settings" = settings sub-page
+
+	// Whisper settings (persisted across page switches)
+	whisperModels    []whisper.Model
+	selectedModel    string
+	selectedLanguage string
+
+	// Settings sub-page (lazy-init on first navigation)
+	settingsPage *settings.Settings
 }
 
 var _ common.Component = (*Transcribe)(nil)
 
 func New() *Transcribe {
+	// Scan whisper models on startup
+	models, _ := whisper.ScanModels(whisper.DefaultModelDir)
+	var selectedModel string
+	if len(models) > 0 {
+		selectedModel = models[0].Name
+	}
+
 	return &Transcribe{
 		options: []Option{
 			{
@@ -86,17 +107,26 @@ func New() *Transcribe {
 				Type:        TypeInput,
 			},
 			{
+				Label:       "Settings",
+				Description: "Configure model and language",
+				Icon:        "⚙",
+				Type:        TypeAction,
+			},
+			{
 				Label:       "Transcribe",
 				Description: "Start speech-to-text transcription",
 				Icon:        "♪",
 				Type:        TypeAction,
 			},
 		},
-		keys:          DefaultKeyMap,
-		helpModel:     help.New(),
-		picker:        filepicker.New(),
-		status:        statusbar.New(),
-		progressBar: progressbar.New(),
+		keys:              DefaultKeyMap,
+		helpModel:         help.New(),
+		picker:            filepicker.New(),
+		status:            statusbar.New(),
+		progressBar:       progressbar.New(),
+		whisperModels:     models,
+		selectedModel:     selectedModel,
+		selectedLanguage:  "auto",
 	}
 }
 
@@ -108,11 +138,18 @@ func (t *Transcribe) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	cardWidth := max(40, ws.Width*60/100)
 	cardWidth = min(cardWidth, 60)
 	t.progressBar.SetWidth(cardWidth - 4)
+	if t.settingsPage != nil {
+		t.settingsPage.Resize(ws)
+	}
 	return t.picker.Resize(ws)
 }
 
-// View renders the menu; shows the file picker if open.
+// View renders the active page: settings sub-page or main menu.
 func (t *Transcribe) View() string {
+	if t.activePage == "settings" && t.settingsPage != nil {
+		return t.settingsPage.View()
+	}
+
 	if t.pickerOpen {
 		return t.picker.View()
 	}
@@ -157,7 +194,17 @@ func (t *Transcribe) View() string {
 			)
 		}
 
-		descLine := "   " + descStyle.Render(opt.Description)
+		// Dynamic description for Settings card
+		desc := opt.Description
+		if opt.Label == "Settings" {
+			if t.selectedModel != "" {
+				desc = fmt.Sprintf("Model: %s / Language: %s", t.selectedModel, t.selectedLanguage)
+			} else {
+				desc = "No models found — add .bin files to ~/.config/utility/whisper/models"
+			}
+		}
+
+		descLine := "   " + descStyle.Render(desc)
 
 		cardContent := lipgloss.JoinVertical(lipgloss.Left,
 			titleLine,
@@ -243,6 +290,22 @@ func (t *Transcribe) View() string {
 }
 
 func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
+	// Intercept page-switching messages regardless of current state.
+	switch msg.(type) {
+	case settings.BackMsg:
+		if t.settingsPage != nil {
+			t.selectedModel = t.settingsPage.SelectedModel
+			t.selectedLanguage = t.settingsPage.SelectedLanguage
+		}
+		t.activePage = ""
+		return nil
+	}
+
+	// Route to settings sub-page when active.
+	if t.activePage == "settings" && t.settingsPage != nil {
+		return t.settingsPage.Update(msg)
+	}
+
 	// When the file picker is open, delegate all input to it.
 	if t.pickerOpen {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
@@ -309,6 +372,11 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 				t.picker.SelectedFile = ""
 				t.pickerOpen = true
 				return t.picker.Init()
+			case cursorSettings:
+				t.settingsPage = settings.New(t.whisperModels, t.selectedModel, t.selectedLanguage)
+				t.settingsPage.Resize(t.lastWindow)
+				t.activePage = "settings"
+				return t.settingsPage.Init()
 			case cursorTranscribe:
 				if t.selectedFile == "" {
 					t.status.SetError("No file selected")
