@@ -47,6 +47,9 @@ type Result struct {
 
 var _ common.Component = (*Result)(nil)
 
+// Close implements common.Component.
+func (r *Result) Close() tea.Cmd { return nil }
+
 func New(filePath string) *Result {
 	ti := textinput.New()
 	ti.Placeholder = "Search..."

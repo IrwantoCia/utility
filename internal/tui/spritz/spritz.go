@@ -40,6 +40,9 @@ type Spritz struct {
 
 var _ common.Component = (*Spritz)(nil)
 
+// Close implements common.Component.
+func (c *Spritz) Close() tea.Cmd { return nil }
+
 func New() *Spritz {
 	return &Spritz{
 		currentPage: pageMenu,

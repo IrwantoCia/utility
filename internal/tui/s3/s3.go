@@ -41,6 +41,9 @@ type S3 struct {
 
 var _ common.Component = (*S3)(nil)
 
+// Close implements common.Component.
+func (c *S3) Close() tea.Cmd { return nil }
+
 // New creates a new S3 coordinator starting at the sub-menu.
 func New() *S3 {
 	return &S3{

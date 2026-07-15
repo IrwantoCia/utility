@@ -65,6 +65,9 @@ type Browse struct {
 
 var _ common.Component = (*Browse)(nil)
 
+// Close implements common.Component.
+func (b *Browse) Close() tea.Cmd { return nil }
+
 // New creates a new Browse coordinator.
 func New(client *s3helper.S3, clientErr error) *Browse {
 	hm := help.New()

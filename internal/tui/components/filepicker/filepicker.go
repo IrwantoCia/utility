@@ -26,6 +26,9 @@ type FilePicker struct {
 
 var _ common.Component = (*FilePicker)(nil)
 
+// Close implements common.Component.
+func (f *FilePicker) Close() tea.Cmd { return nil }
+
 func New() *FilePicker {
 	m := fp.New()
 	m.CurrentDirectory, _ = os.Getwd()

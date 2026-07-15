@@ -12,4 +12,5 @@ type Component interface {
 	View() string
 	Update(msg tea.Msg) tea.Cmd
 	Resize(ws tea.WindowSizeMsg) tea.Cmd
+	Close() tea.Cmd
 }

@@ -25,6 +25,9 @@ type ListPicker struct {
 
 var _ common.Component = (*ListPicker)(nil)
 
+// Close implements common.Component.
+func (l *ListPicker) Close() tea.Cmd { return nil }
+
 // New creates a new ListPicker with no items and no selection.
 func New() *ListPicker {
 	return &ListPicker{

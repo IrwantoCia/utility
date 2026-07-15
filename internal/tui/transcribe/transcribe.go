@@ -111,8 +111,9 @@ type Transcribe struct {
 
 var _ common.Component = (*Transcribe)(nil)
 
-// Close cancels any running background processes (ffmpeg, whisper-cli).
-func (t *Transcribe) Close() {
+// Close implements common.Component.
+// It cancels any running background processes (ffmpeg, whisper-cli).
+func (t *Transcribe) Close() tea.Cmd {
 	if t.convCancel != nil {
 		t.convCancel()
 		t.convCancel = nil
@@ -123,6 +124,7 @@ func (t *Transcribe) Close() {
 	}
 	t.phase = ""
 	t.transcribing = false
+	return nil
 }
 
 func New() *Transcribe {

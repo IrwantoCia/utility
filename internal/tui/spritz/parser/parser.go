@@ -77,6 +77,9 @@ type Parser struct {
 
 var _ common.Component = (*Parser)(nil)
 
+// Close implements common.Component.
+func (p *Parser) Close() tea.Cmd { return nil }
+
 // New creates a new Parser with card-style menu.
 func New() *Parser {
 	return &Parser{

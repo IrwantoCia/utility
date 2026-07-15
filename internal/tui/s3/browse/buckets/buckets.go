@@ -21,6 +21,9 @@ type Buckets struct {
 
 var _ common.Component = (*Buckets)(nil)
 
+// Close implements common.Component.
+func (b *Buckets) Close() tea.Cmd { return nil }
+
 // New creates an empty Buckets panel.
 func New() *Buckets {
 	return &Buckets{

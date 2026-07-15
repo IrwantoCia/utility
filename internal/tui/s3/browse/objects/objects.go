@@ -26,6 +26,9 @@ type Objects struct {
 
 var _ common.Component = (*Objects)(nil)
 
+// Close implements common.Component.
+func (o *Objects) Close() tea.Cmd { return nil }
+
 // New creates an empty Objects panel.
 func New() *Objects {
 	return &Objects{

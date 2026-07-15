@@ -59,6 +59,9 @@ type optionEntry struct {
 
 var _ common.Component = (*Settings)(nil)
 
+// Close implements common.Component.
+func (s *Settings) Close() tea.Cmd { return nil }
+
 // New creates a new Settings sub-page with the given models and selections.
 func New(models []whisper.Model, selectedModel, selectedLanguage string) *Settings {
 	s := &Settings{

@@ -94,6 +94,9 @@ type Reader struct {
 
 var _ common.Component = (*Reader)(nil)
 
+// Close implements common.Component.
+func (r *Reader) Close() tea.Cmd { return nil }
+
 // New creates a new Reader with card-style menu and default 300 WPM.
 func New() *Reader {
 	return &Reader{

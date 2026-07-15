@@ -163,6 +163,9 @@ type Upload struct {
 
 var _ common.Component = (*Upload)(nil)
 
+// Close implements common.Component.
+func (u *Upload) Close() tea.Cmd { return nil }
+
 func New(client *s3helper.S3, clientErr error) *Upload {
 	return &Upload{
 		options: []Option{

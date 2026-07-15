@@ -34,6 +34,9 @@ type Csv struct {
 
 var _ common.Component = (*Csv)(nil)
 
+// Close implements common.Component.
+func (c *Csv) Close() tea.Cmd { return nil }
+
 func New() *Csv {
 	return &Csv{
 		currentPage: pageMenu,

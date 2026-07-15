@@ -53,6 +53,9 @@ type Menu struct {
 
 var _ common.Component = (*Menu)(nil)
 
+// Close implements common.Component.
+func (m *Menu) Close() tea.Cmd { return nil }
+
 func New() *Menu {
 	return &Menu{
 		options: []Option{

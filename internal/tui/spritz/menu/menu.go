@@ -45,6 +45,9 @@ type Menu struct {
 
 var _ common.Component = (*Menu)(nil)
 
+// Close implements common.Component.
+func (m *Menu) Close() tea.Cmd { return nil }
+
 // New creates a new Spritz sub-menu with card-style options.
 func New() *Menu {
 	return &Menu{
