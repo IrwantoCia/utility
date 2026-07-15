@@ -5,8 +5,10 @@ package transcribe
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
@@ -56,6 +58,18 @@ type convertStartedMsg struct {
 	doneCh     <-chan convertDoneMsg
 }
 
+type transcribeProgressMsg struct{ elapsed time.Duration }
+
+type transcribeDoneMsg struct {
+	outputPath string
+	err        error
+}
+
+type transcribeStartedMsg struct {
+	progressCh <-chan time.Duration
+	doneCh     <-chan transcribeDoneMsg
+}
+
 type Transcribe struct {
 	options      []Option
 	cursor       cursorPos
@@ -68,13 +82,20 @@ type Transcribe struct {
 
 	ffmpeg       *ffmpeghelper.FFmpeg // lazy init on first use
 	status       *statusbar.StatusBar
-	converting   bool
+	phase        string // "" = idle, "extract" = ffmpeg, "transcribe" = whisper
 	convProgress float64
 	convOutput   string        // temp WAV path
 	convChannels convertStartedMsg // stored for re-chaining progress
 	convCancel   context.CancelFunc
 
 	progressBar *progressbar.ProgressBar
+
+	whisper            *whisper.Whisper
+	transcribing       bool
+	transcribeProgress time.Duration
+	transcribeOutput   string
+	transChannels      transcribeStartedMsg
+	transCancel        context.CancelFunc
 
 	// Coordinator state for sub-pages
 	activePage string // "" = menu, "settings" = settings sub-page
@@ -244,10 +265,13 @@ func (t *Transcribe) View() string {
 		Width(t.lastWindow.Width).
 		Render(Banner)
 
-	// Progress bar during conversion
+	// Progress bar during conversion/transcription
 	var progressLine string
-	if t.converting {
+	if t.phase == "extract" {
 		progressLine = style.Default.CardTitle.Render("  " + t.progressBar.View())
+	} else if t.phase == "transcribe" {
+		elapsed := t.transcribeProgress.Truncate(time.Second).String()
+		progressLine = style.Default.CardTitle.Render(fmt.Sprintf("  Transcribing... (%s)", elapsed))
 	}
 
 	// Status message box
@@ -332,25 +356,76 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		t.progressBar.SetPercent(msg.percent)
 		return listenConvert(t.convChannels)
 	case convertDoneMsg:
-		t.converting = false
+		t.phase = ""
 		t.convChannels = convertStartedMsg{}
 		if msg.err != nil {
 			t.status.SetError("Conversion failed: " + msg.err.Error())
+			return nil
+		}
+		t.convOutput = msg.outputPath
+		t.status.SetSuccess(fmt.Sprintf("Audio extracted: %s", msg.outputPath))
+
+		// Auto-chain: start whisper transcription after successful extraction
+		if t.selectedModel == "" {
+			t.status.SetError("No whisper model selected. Configure in Settings.")
+			return nil
+		}
+
+		if t.whisper == nil {
+			var err error
+			t.whisper, err = whisper.New()
+			if err != nil {
+				t.status.SetError("Whisper not found: " + err.Error())
+				return nil
+			}
+		}
+
+		baseName := filepath.Base(t.selectedFile)
+		ext := filepath.Ext(baseName)
+		outputBase := strings.TrimSuffix(baseName, ext)
+
+		modelPath := filepath.Join(whisper.DefaultModelDir, "ggml-"+t.selectedModel+".bin")
+		home, _ := os.UserHomeDir()
+		modelPath = strings.Replace(modelPath, "~", home, 1)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.transCancel = cancel
+		t.phase = "transcribe"
+		t.transcribeProgress = 0
+		t.transcribeOutput = ""
+		t.transcribing = true
+		t.status.SetInfo("Transcribing...")
+		return startTranscribe(ctx, t.whisper, modelPath, msg.outputPath, outputBase, t.selectedLanguage)
+	case transcribeStartedMsg:
+		t.transChannels = msg
+		return listenTranscribe(msg)
+	case transcribeProgressMsg:
+		t.transcribeProgress = msg.elapsed
+		return listenTranscribe(t.transChannels)
+	case transcribeDoneMsg:
+		t.transcribing = false
+		t.phase = ""
+		t.transChannels = transcribeStartedMsg{}
+		if msg.err != nil {
+			t.status.SetError("Transcription failed: " + msg.err.Error())
 		} else {
-			t.convOutput = msg.outputPath
-			t.status.SetSuccess(fmt.Sprintf("Audio extracted: %s", msg.outputPath))
+			t.transcribeOutput = msg.outputPath
+			t.status.SetSuccess(fmt.Sprintf("Transcription saved: %s", msg.outputPath))
 		}
 		return nil
 	}
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		// Lock navigation during conversion — only Esc allowed
-		if t.converting {
+		// Lock navigation during conversion/transcription — only Esc allowed
+		if t.phase != "" {
 			if key.Matches(keyMsg, t.keys.Esc) {
 				if t.convCancel != nil {
 					t.convCancel()
 				}
-				t.converting = false
+				if t.transCancel != nil {
+					t.transCancel()
+				}
+				t.phase = ""
 				t.status.SetInfo("Cancelled")
 				return nil
 			}
@@ -398,7 +473,7 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 
 				ctx, cancel := context.WithCancel(context.Background())
 				t.convCancel = cancel
-				t.converting = true
+				t.phase = "extract"
 				t.convProgress = 0
 				t.convOutput = ""
 				t.status.SetInfo("Extracting audio...")
@@ -433,6 +508,45 @@ func listenConvert(started convertStartedMsg) tea.Cmd {
 		case pct, ok := <-started.progressCh:
 			if ok {
 				return convertProgressMsg{percent: pct}
+			}
+			select {
+			case done := <-started.doneCh:
+				return done
+			default:
+				return nil
+			}
+		case done := <-started.doneCh:
+			return done
+		}
+	}
+}
+
+func startTranscribe(ctx context.Context, w *whisper.Whisper, modelPath, inputPath, outputBase, language string) tea.Cmd {
+	return func() tea.Msg {
+		progressCh := make(chan time.Duration, 100)
+		doneCh := make(chan transcribeDoneMsg, 1)
+
+		go func() {
+			err := w.Transcribe(ctx, modelPath, inputPath, outputBase, language, func(elapsed time.Duration) {
+				select {
+				case progressCh <- elapsed:
+				default:
+				}
+			})
+			doneCh <- transcribeDoneMsg{outputPath: outputBase + ".txt", err: err}
+			close(progressCh)
+		}()
+
+		return transcribeStartedMsg{progressCh: progressCh, doneCh: doneCh}
+	}
+}
+
+func listenTranscribe(started transcribeStartedMsg) tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case elapsed, ok := <-started.progressCh:
+			if ok {
+				return transcribeProgressMsg{elapsed: elapsed}
 			}
 			select {
 			case done := <-started.doneCh:
