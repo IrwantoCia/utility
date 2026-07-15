@@ -111,6 +111,20 @@ type Transcribe struct {
 
 var _ common.Component = (*Transcribe)(nil)
 
+// Close cancels any running background processes (ffmpeg, whisper-cli).
+func (t *Transcribe) Close() {
+	if t.convCancel != nil {
+		t.convCancel()
+		t.convCancel = nil
+	}
+	if t.transCancel != nil {
+		t.transCancel()
+		t.transCancel = nil
+	}
+	t.phase = ""
+	t.transcribing = false
+}
+
 func New() *Transcribe {
 	// Scan whisper models on startup
 	models, _ := whisper.ScanModels(whisper.DefaultModelDir)
@@ -388,6 +402,9 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		home, _ := os.UserHomeDir()
 		modelPath = strings.Replace(modelPath, "~", home, 1)
 
+		vadModelPath := filepath.Join(whisper.DefaultModelDir, whisper.DefaultVADModelFile)
+		vadModelPath = strings.Replace(vadModelPath, "~", home, 1)
+
 		ctx, cancel := context.WithCancel(context.Background())
 		t.transCancel = cancel
 		t.phase = "transcribe"
@@ -395,7 +412,7 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		t.transcribeOutput = ""
 		t.transcribing = true
 		t.status.SetInfo("Transcribing...")
-		return startTranscribe(ctx, t.whisper, modelPath, msg.outputPath, outputBase, t.selectedLanguage)
+		return startTranscribe(ctx, t.whisper, modelPath, msg.outputPath, outputBase, t.selectedLanguage, vadModelPath)
 	case transcribeStartedMsg:
 		t.transChannels = msg
 		return listenTranscribe(msg)
@@ -521,13 +538,13 @@ func listenConvert(started convertStartedMsg) tea.Cmd {
 	}
 }
 
-func startTranscribe(ctx context.Context, w *whisper.Whisper, modelPath, inputPath, outputBase, language string) tea.Cmd {
+func startTranscribe(ctx context.Context, w *whisper.Whisper, modelPath, inputPath, outputBase, language, vadModelPath string) tea.Cmd {
 	return func() tea.Msg {
 		progressCh := make(chan time.Duration, 100)
 		doneCh := make(chan transcribeDoneMsg, 1)
 
 		go func() {
-			err := w.Transcribe(ctx, modelPath, inputPath, outputBase, language, func(elapsed time.Duration) {
+			err := w.Transcribe(ctx, modelPath, inputPath, outputBase, language, vadModelPath, func(elapsed time.Duration) {
 				select {
 				case progressCh <- elapsed:
 				default:

@@ -32,13 +32,17 @@ func New() (*Whisper, error) {
 //   - language: language code ("auto", "en", "id", "ja", "tl") or "auto"
 //   - progress: called every ~1 second with elapsed time. nil = no progress reporting.
 //     Caller MUST NOT block in this callback (send to channel instead).
-func (w *Whisper) Transcribe(ctx context.Context, modelPath, inputPath, outputBase, language string, progress func(elapsed time.Duration)) error {
+func (w *Whisper) Transcribe(ctx context.Context, modelPath, inputPath, outputBase, language, vadModelPath string, progress func(elapsed time.Duration)) error {
 	args := []string{
 		"-m", modelPath,
 		"-f", inputPath,
 		"-l", language,
 		"-otxt",
 		"-of", outputBase,
+	}
+
+	if vadModelPath != "" {
+		args = append(args, "--vad", "--vad-model", vadModelPath)
 	}
 
 	cmd := exec.CommandContext(ctx, w.binPath, args...)

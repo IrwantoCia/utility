@@ -59,6 +59,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
 			switch {
 			case key.Matches(keyMsg, m.keys.Quit):
+				// Give the active component a chance to clean up
+				// (e.g. cancel background ffmpeg/whisper processes).
+				if closer, ok := comp.(interface{ Close() }); ok {
+					closer.Close()
+				}
 				return m, tea.Quit
 			}
 		}

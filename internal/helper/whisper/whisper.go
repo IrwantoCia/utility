@@ -19,6 +19,9 @@ type Model struct {
 // DefaultModelDir is the hardcoded path for whisper model storage.
 const DefaultModelDir = "~/.config/utility/whisper/models"
 
+// DefaultVADModelFile is the filename of the Silero VAD model bundled with the application.
+const DefaultVADModelFile = "ggml-silero-v6.2.0.bin"
+
 // ScanModels scans baseDir for ggml-*.bin files and returns parsed models.
 // baseDir supports ~ expansion. Returns empty slice if directory doesn't exist.
 func ScanModels(baseDir string) ([]Model, error) {
@@ -46,6 +49,11 @@ func ScanModels(baseDir string) ([]Model, error) {
 		}
 		name := entry.Name()
 		if !strings.HasPrefix(name, "ggml-") || !strings.HasSuffix(name, ".bin") {
+			continue
+		}
+
+		// Skip VAD model files (e.g. ggml-silero-*.bin) — they are not whisper models.
+		if strings.Contains(name, "silero") {
 			continue
 		}
 
