@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/IrwantoCia/utility/internal/helper/whisper"
 	"github.com/IrwantoCia/utility/internal/tui/common"
+	"github.com/IrwantoCia/utility/internal/tui/components/checkbox"
 	"github.com/IrwantoCia/utility/internal/tui/components/listpicker"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
@@ -22,6 +23,7 @@ type cursorPos int
 const (
 	cursorModel cursorPos = iota
 	cursorLanguage
+	cursorFormat
 )
 
 // languageItems is the fixed list of supported language selections.
@@ -34,11 +36,12 @@ type Settings struct {
 	cursor     cursorPos
 	lastWindow tea.WindowSizeMsg
 
-	// Listpickers for interactive selection
+	// Pickers for interactive selection
 	modelPicker  *listpicker.ListPicker
 	langPicker   *listpicker.ListPicker
-	activePicker *listpicker.ListPicker // non-nil when a picker is open
-	activeCursor cursorPos             // which cursor opened the picker
+	formatPicker *checkbox.Checkbox
+	activePicker common.Component // non-nil when a picker is open
+	activeCursor cursorPos       // which cursor opened the picker
 
 	// Scan results
 	models []whisper.Model
@@ -49,6 +52,7 @@ type Settings struct {
 	// Selected values (set by caller before showing, updated on picker select)
 	SelectedModel    string
 	SelectedLanguage string
+	SelectedFormats  []string
 }
 
 type optionEntry struct {
@@ -70,8 +74,10 @@ func New(models []whisper.Model, selectedModel, selectedLanguage string) *Settin
 		models:           models,
 		modelPicker:      listpicker.New(),
 		langPicker:       listpicker.New(),
+		formatPicker:     checkbox.New(),
 		SelectedModel:    selectedModel,
 		SelectedLanguage: selectedLanguage,
+		SelectedFormats:  []string{"txt"},
 		options: []optionEntry{
 			{
 				Label:       "Model",
@@ -82,6 +88,11 @@ func New(models []whisper.Model, selectedModel, selectedLanguage string) *Settin
 				Label:       "Language",
 				Description: "Transcription language",
 				Icon:        "🌐",
+			},
+			{
+				Label:       "Output Format",
+				Description: "Select output formats",
+				Icon:        "📋",
 			},
 		},
 	}
@@ -101,6 +112,7 @@ func (s *Settings) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	s.helpModel, _ = s.helpModel.Update(ws)
 	s.modelPicker.Resize(ws)
 	s.langPicker.Resize(ws)
+	s.formatPicker.Resize(ws)
 	return nil
 }
 
@@ -144,6 +156,12 @@ func (s *Settings) View() string {
 			}
 		case "Language":
 			valueLine = "   " + descStyle.Render("Current: "+s.SelectedLanguage)
+		case "Output Format":
+			if len(s.SelectedFormats) > 0 {
+				valueLine = "   " + descStyle.Render("Current: "+strings.Join(s.SelectedFormats, ", "))
+			} else {
+				valueLine = "   " + descStyle.Render("No format selected")
+			}
 		}
 
 		// Build card content
@@ -231,24 +249,33 @@ func (s *Settings) Update(msg tea.Msg) tea.Cmd {
 		cmd := s.activePicker.Update(msg)
 
 		// Check if the picker made a selection
-		if s.activePicker.Selected != "" {
-			selected := s.activePicker.Selected
-			s.activePicker = nil
+		switch p := s.activePicker.(type) {
+		case *listpicker.ListPicker:
+			if p.Selected != "" {
+				selected := p.Selected
+				s.activePicker = nil
 
-			switch s.activeCursor {
-			case cursorModel:
-				// Parse model name from display: "small (466MB)" -> "small"
-				if idx := strings.Index(selected, " ("); idx >= 0 {
-					s.SelectedModel = selected[:idx]
-				} else {
-					s.SelectedModel = selected
+				switch s.activeCursor {
+				case cursorModel:
+					// Parse model name from display: "small (466MB)" -> "small"
+					if idx := strings.Index(selected, " ("); idx >= 0 {
+						s.SelectedModel = selected[:idx]
+					} else {
+						s.SelectedModel = selected
+					}
+				case cursorLanguage:
+					// Parse language code from display: "id (Indonesian)" -> "id"
+					parts := strings.SplitN(selected, " ", 2)
+					s.SelectedLanguage = parts[0]
 				}
-			case cursorLanguage:
-				// Parse language code from display: "id (Indonesian)" -> "id"
-				parts := strings.SplitN(selected, " ", 2)
-				s.SelectedLanguage = parts[0]
+				return nil
 			}
-			return nil
+		case *checkbox.Checkbox:
+			if p.Selected != nil {
+				s.SelectedFormats = p.Selected
+				s.activePicker = nil
+				return nil
+			}
 		}
 
 		return cmd
@@ -286,6 +313,14 @@ func (s *Settings) Update(msg tea.Msg) tea.Cmd {
 				s.activePicker = s.langPicker
 				s.activeCursor = cursorLanguage
 				return s.langPicker.Init()
+			case cursorFormat:
+				items := []string{"txt", "srt", "vtt", "csv", "json", "lrc"}
+				s.formatPicker.SetItems(items)
+				s.formatPicker.SetTitle("Output Format")
+				s.formatPicker.SetChecked(s.SelectedFormats)
+				s.activePicker = s.formatPicker
+				s.activeCursor = cursorFormat
+				return s.formatPicker.Init()
 			}
 		}
 	}
