@@ -292,6 +292,9 @@ func (t *Transcribe) View() string {
 	} else if t.phase == "transcribe" {
 		elapsed := t.transcribeProgress.Truncate(time.Second).String()
 		progressLine = style.Default.CardTitle.Render(fmt.Sprintf("  Transcribing... (%s)", elapsed))
+	} else if t.phase == "done" {
+		elapsed := t.transcribeProgress.Truncate(time.Second).String()
+		progressLine = style.Default.CardTitle.Render(fmt.Sprintf("  ✓ Completed in %s", elapsed))
 	}
 
 	// Status message box
@@ -429,11 +432,12 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		return listenTranscribe(t.transChannels)
 	case transcribeDoneMsg:
 		t.transcribing = false
-		t.phase = ""
 		t.transChannels = transcribeStartedMsg{}
 		if msg.err != nil {
+			t.phase = ""
 			t.status.SetError("Transcription failed: " + msg.err.Error())
 		} else {
+			t.phase = "done"
 			exts := make([]string, len(msg.formats))
 			for i, f := range msg.formats {
 				exts[i] = "." + f
@@ -448,14 +452,18 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		// Lock navigation during conversion/transcription — only Esc allowed
 		if t.phase != "" {
 			if key.Matches(keyMsg, t.keys.Esc) {
-				if t.convCancel != nil {
-					t.convCancel()
-				}
-				if t.transCancel != nil {
-					t.transCancel()
+				if t.phase != "done" {
+					if t.convCancel != nil {
+						t.convCancel()
+					}
+					if t.transCancel != nil {
+						t.transCancel()
+					}
+					t.status.SetInfo("Cancelled")
+				} else {
+					t.status.Clear()
 				}
 				t.phase = ""
-				t.status.SetInfo("Cancelled")
 				return nil
 			}
 			return nil
