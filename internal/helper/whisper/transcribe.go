@@ -30,15 +30,22 @@ func New() (*Whisper, error) {
 //   - inputPath: path to the WAV/PCM audio file (must be 16kHz, mono, 16-bit)
 //   - outputBase: base output filename WITHOUT extension (e.g., "filmku" produces "filmku.txt")
 //   - language: language code ("auto", "en", "id", "ja", "tl") or "auto"
+//   - formats: output formats ("txt", "srt", "vtt", "csv", "json", "lrc"). Empty defaults to ["txt"].
 //   - progress: called every ~1 second with elapsed time. nil = no progress reporting.
 //     Caller MUST NOT block in this callback (send to channel instead).
-func (w *Whisper) Transcribe(ctx context.Context, modelPath, inputPath, outputBase, language, vadModelPath string, progress func(elapsed time.Duration)) error {
+func (w *Whisper) Transcribe(ctx context.Context, modelPath, inputPath, outputBase, language, vadModelPath string, formats []string, progress func(elapsed time.Duration)) error {
 	args := []string{
 		"-m", modelPath,
 		"-f", inputPath,
 		"-l", language,
-		"-otxt",
 		"-of", outputBase,
+	}
+
+	if len(formats) == 0 {
+		formats = []string{"txt"}
+	}
+	for _, f := range formats {
+		args = append(args, "-o"+f)
 	}
 
 	if vadModelPath != "" {

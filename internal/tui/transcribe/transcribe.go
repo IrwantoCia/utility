@@ -61,7 +61,8 @@ type convertStartedMsg struct {
 type transcribeProgressMsg struct{ elapsed time.Duration }
 
 type transcribeDoneMsg struct {
-	outputPath string
+	outputBase string
+	formats    []string
 	err        error
 }
 
@@ -78,6 +79,7 @@ type Transcribe struct {
 	picker       *filepicker.FilePicker
 	pickerOpen   bool
 	selectedFile string
+	outputDir    string
 	lastWindow   tea.WindowSizeMsg
 
 	ffmpeg       *ffmpeghelper.FFmpeg // lazy init on first use
@@ -104,6 +106,7 @@ type Transcribe struct {
 	whisperModels    []whisper.Model
 	selectedModel    string
 	selectedLanguage string
+	selectedFormats  []string
 
 	// Settings sub-page (lazy-init on first navigation)
 	settingsPage *settings.Settings
@@ -164,6 +167,7 @@ func New() *Transcribe {
 		whisperModels:     models,
 		selectedModel:     selectedModel,
 		selectedLanguage:  "auto",
+		selectedFormats:   []string{"txt"},
 	}
 }
 
@@ -336,6 +340,7 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		if t.settingsPage != nil {
 			t.selectedModel = t.settingsPage.SelectedModel
 			t.selectedLanguage = t.settingsPage.SelectedLanguage
+			t.selectedFormats = t.settingsPage.SelectedFormats
 		}
 		t.activePage = ""
 		return nil
@@ -379,7 +384,7 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 			return nil
 		}
 		t.convOutput = msg.outputPath
-		t.status.SetSuccess(fmt.Sprintf("Audio extracted: %s", msg.outputPath))
+		t.status.SetSuccess(fmt.Sprintf("Audio extracted to %s/", t.outputDir))
 
 		// Auto-chain: start whisper transcription after successful extraction
 		if t.selectedModel == "" {
@@ -398,7 +403,8 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 
 		baseName := filepath.Base(t.selectedFile)
 		ext := filepath.Ext(baseName)
-		outputBase := strings.TrimSuffix(baseName, ext)
+		nameOnly := strings.TrimSuffix(baseName, ext)
+		outputBase := filepath.Join(t.outputDir, nameOnly)
 
 		modelPath := filepath.Join(whisper.DefaultModelDir, "ggml-"+t.selectedModel+".bin")
 		home, _ := os.UserHomeDir()
@@ -414,7 +420,7 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		t.transcribeOutput = ""
 		t.transcribing = true
 		t.status.SetInfo("Transcribing...")
-		return startTranscribe(ctx, t.whisper, modelPath, msg.outputPath, outputBase, t.selectedLanguage, vadModelPath)
+		return startTranscribe(ctx, t.whisper, modelPath, msg.outputPath, outputBase, t.selectedLanguage, vadModelPath, t.selectedFormats)
 	case transcribeStartedMsg:
 		t.transChannels = msg
 		return listenTranscribe(msg)
@@ -428,8 +434,12 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 		if msg.err != nil {
 			t.status.SetError("Transcription failed: " + msg.err.Error())
 		} else {
-			t.transcribeOutput = msg.outputPath
-			t.status.SetSuccess(fmt.Sprintf("Transcription saved: %s", msg.outputPath))
+			exts := make([]string, len(msg.formats))
+			for i, f := range msg.formats {
+				exts[i] = "." + f
+			}
+			t.transcribeOutput = msg.outputBase
+			t.status.SetSuccess(fmt.Sprintf("Transcription saved to %s/", t.outputDir))
 		}
 		return nil
 	}
@@ -485,10 +495,16 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 						return nil
 					}
 				}
-				// Build output path in CWD
+				// Build output path in a subfolder named after the input file
 				baseName := filepath.Base(t.selectedFile)
 				ext := filepath.Ext(baseName)
-				outputPath := strings.TrimSuffix(baseName, ext) + ".wav"
+				nameOnly := strings.TrimSuffix(baseName, ext)
+				t.outputDir = filepath.Join(".", nameOnly)
+				if err := os.MkdirAll(t.outputDir, 0755); err != nil {
+					t.status.SetError("Failed to create output directory: " + err.Error())
+					return nil
+				}
+				outputPath := filepath.Join(t.outputDir, nameOnly+".wav")
 
 				ctx, cancel := context.WithCancel(context.Background())
 				t.convCancel = cancel
@@ -540,19 +556,19 @@ func listenConvert(started convertStartedMsg) tea.Cmd {
 	}
 }
 
-func startTranscribe(ctx context.Context, w *whisper.Whisper, modelPath, inputPath, outputBase, language, vadModelPath string) tea.Cmd {
+func startTranscribe(ctx context.Context, w *whisper.Whisper, modelPath, inputPath, outputBase, language, vadModelPath string, formats []string) tea.Cmd {
 	return func() tea.Msg {
 		progressCh := make(chan time.Duration, 100)
 		doneCh := make(chan transcribeDoneMsg, 1)
 
 		go func() {
-			err := w.Transcribe(ctx, modelPath, inputPath, outputBase, language, vadModelPath, func(elapsed time.Duration) {
+			err := w.Transcribe(ctx, modelPath, inputPath, outputBase, language, vadModelPath, formats, func(elapsed time.Duration) {
 				select {
 				case progressCh <- elapsed:
 				default:
 				}
 			})
-			doneCh <- transcribeDoneMsg{outputPath: outputBase + ".txt", err: err}
+			doneCh <- transcribeDoneMsg{outputBase: outputBase, formats: formats, err: err}
 			close(progressCh)
 		}()
 
