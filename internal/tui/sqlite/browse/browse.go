@@ -11,7 +11,7 @@ import (
 	sqhelper "github.com/IrwantoCia/utility/internal/helper/sqlite"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/details"
-	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/schema"
+	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/data"
 	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/tables"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
@@ -26,11 +26,11 @@ const (
 	focusSchema
 )
 
-// Browse coordinates the 3-panel SQLite browser (Tables + Schema + Details).
+// Browse coordinates the 3-panel SQLite browser (Tables + Data + Details).
 type Browse struct {
 	db      *sqhelper.DB
 	tables  *tables.Tables
-	schema  *schema.Schema
+	data  *data.Data
 	details *details.Details
 
 	focus      panelFocus
@@ -59,7 +59,7 @@ func New(db *sqhelper.DB) *Browse {
 	return &Browse{
 		db:      db,
 		tables:  tables.New(db),
-		schema:  schema.New(db),
+		data:  data.New(db),
 		details: details.New(db),
 		focus:   focusTables,
 		keys:    DefaultKeyMap,
@@ -101,7 +101,7 @@ func (b *Browse) View() string {
 // renderPanels builds the three bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
 	tablesView  := b.wrapPanel(b.tables.View(), b.leftW, b.focus == focusTables, false, "Tables")
-	schemaView  := b.wrapPanel(b.schema.View(b.midW-4), b.midW, b.focus == focusSchema, false, "Data")
+	schemaView  := b.wrapPanel(b.data.View(b.midW-4), b.midW, b.focus == focusSchema, false, "Data")
 	detailsView := b.wrapPanel(b.details.View(b.rightW-4), b.rightW, false, false, "Info")
 	return lipgloss.JoinHorizontal(lipgloss.Top, tablesView, schemaView, detailsView)
 }
@@ -163,7 +163,7 @@ func (b *Browse) wrapPanel(content string, w int, active bool, filterActive bool
 }
 
 // Update handles input: Esc returns to SQLite menu, arrow/vim keys navigate,
-// Left/Right/Tab switch panels, Enter refreshes schema/details.
+// Left/Right/Tab switch panels, Enter refreshes data/details.
 func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
@@ -238,7 +238,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 	return nil
 }
 
-// syncPanels updates schema and details panels from the currently selected
+// syncPanels updates data and details panels from the currently selected
 // table.
 func (b *Browse) syncPanels() {
 	selected := b.tables.Selected()
@@ -246,6 +246,6 @@ func (b *Browse) syncPanels() {
 		return
 	}
 
-	b.schema.SetTable(selected)
+	b.data.SetTable(selected)
 	b.details.SetTable(selected)
 }
