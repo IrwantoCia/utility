@@ -5,11 +5,33 @@
 package sqlite
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 
 	_ "modernc.org/sqlite"
 )
+
+// FilterOp represents a comparison operator for a filter condition.
+type FilterOp string
+
+const (
+	OpEQ      FilterOp = "="
+	OpNE      FilterOp = "!="
+	OpGT      FilterOp = ">"
+	OpLT      FilterOp = "<"
+	OpGTE     FilterOp = ">="
+	OpLTE     FilterOp = "<="
+	OpLIKE    FilterOp = "LIKE"
+	OpNOTLIKE FilterOp = "NOT LIKE"
+)
+
+// Filter represents a single WHERE condition: column operator value.
+type Filter struct {
+	Column string
+	Op     FilterOp
+	Value  any
+}
 
 // DB wraps a *sql.DB connection to a SQLite database.
 type DB struct {
@@ -188,8 +210,41 @@ func (db *DB) Indexes(table string) ([]Index, error) {
 // Query runs a SELECT * on the given table with optional limit/offset.
 // Returns the rows as []Row, the column names as []string.
 func (db *DB) Query(table string, limit, offset int) ([]Row, []string, error) {
-	query := fmt.Sprintf(`SELECT * FROM "%s" LIMIT ? OFFSET ?`, table)
-	rows, err := db.db.Query(query, limit, offset)
+	return db.QueryFiltered(table, nil, limit, offset)
+}
+
+// QueryFiltered queries a table with optional filters and returns rows + column names.
+// The filters are applied using parameterized queries (no SQL injection).
+// limit and offset control pagination. If limit <= 0 it defaults to 100.
+func (db *DB) QueryFiltered(table string, filters []Filter, limit, offset int) ([]Row, []string, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+
+	var clause bytes.Buffer
+	clause.WriteString(fmt.Sprintf(`SELECT * FROM "%s"`, table))
+
+	args := make([]any, 0, len(filters)+2)
+
+	if len(filters) > 0 {
+		clause.WriteString(" WHERE ")
+		for i, f := range filters {
+			if i > 0 {
+				clause.WriteString(" AND ")
+			}
+			clause.WriteString(f.Column)
+			clause.WriteString(" ")
+			clause.WriteString(string(f.Op))
+			clause.WriteString(" ?")
+			args = append(args, f.Value)
+		}
+	}
+
+	clause.WriteString(" ORDER BY rowid LIMIT ? OFFSET ?")
+	args = append(args, limit, offset)
+
+	query := clause.String()
+	rows, err := db.db.Query(query, args...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%w: query %q: %w", ErrQuery, query, err)
 	}
