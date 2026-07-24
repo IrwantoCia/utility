@@ -13,7 +13,6 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/csv"
 	"github.com/IrwantoCia/utility/internal/tui/s3"
-	"github.com/IrwantoCia/utility/internal/tui/spritz"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 	"github.com/IrwantoCia/utility/internal/tui/transcribe"
 )
@@ -167,7 +166,6 @@ func Run() {
 		menus: []menu{
 			{name: "CSV", description: "View and search CSV files with table display", component: csv.New()},
 			{name: "S3", description: "Browse and manage S3 buckets and objects", component: s3.New()},
-			{name: "Spritz", description: "RSVP speed reading — word by word", component: spritz.New()},
 			{name: "Transcribe", description: "Speech-to-text transcription", component: transcribe.New()},
 		},
 	}

@@ -84,7 +84,7 @@ type Transcribe struct {
 
 	ffmpeg       *ffmpeghelper.FFmpeg // lazy init on first use
 	status       *statusbar.StatusBar
-	phase        string // "" = idle, "extract" = ffmpeg, "transcribe" = whisper
+	phase        string // "" = idle, "extract" = ffmpeg, "transcribe" = whisper, "done" = completed
 	convProgress float64
 	convOutput   string        // temp WAV path
 	convChannels convertStartedMsg // stored for re-chaining progress
@@ -449,24 +449,29 @@ func (t *Transcribe) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-		// Lock navigation during conversion/transcription — only Esc allowed
-		if t.phase != "" {
+		// Lock navigation during extract/transcribe — only Esc allowed
+		if t.phase == "extract" || t.phase == "transcribe" {
 			if key.Matches(keyMsg, t.keys.Esc) {
-				if t.phase != "done" {
-					if t.convCancel != nil {
-						t.convCancel()
-					}
-					if t.transCancel != nil {
-						t.transCancel()
-					}
-					t.status.SetInfo("Cancelled")
-				} else {
-					t.status.Clear()
+				if t.convCancel != nil {
+					t.convCancel()
+				}
+				if t.transCancel != nil {
+					t.transCancel()
 				}
 				t.phase = ""
+				t.status.SetInfo("Cancelled")
 				return nil
 			}
 			return nil
+		}
+
+		// Esc in "done" resets phase so the menu is usable again
+		if t.phase == "done" {
+			if key.Matches(keyMsg, t.keys.Esc) {
+				t.phase = ""
+				t.status.Clear()
+				return nil
+			}
 		}
 
 		switch {

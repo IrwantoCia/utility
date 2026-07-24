@@ -22,4 +22,3 @@ go.work.sum
 *.swo
 
 .env
-.spritz/
