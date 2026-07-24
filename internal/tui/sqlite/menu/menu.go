@@ -14,6 +14,12 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
+// ShowBrowseMsg is sent when the user connects to a database, telling the
+// coordinator to switch to the browse view.
+type ShowBrowseMsg struct {
+	DBPath string
+}
+
 type OptionType int
 
 const (
@@ -230,8 +236,9 @@ func (m *Menu) Update(msg tea.Msg) tea.Cmd {
 				return m.picker.Init()
 			case cursorConnect:
 				if m.selectedFile != "" {
-					// For now, just show a placeholder message by navigating
-					// back to menu — the coordinator will expand this later.
+					return func() tea.Msg {
+						return ShowBrowseMsg{DBPath: m.selectedFile}
+					}
 				}
 			}
 		}
