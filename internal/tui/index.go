@@ -13,6 +13,7 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/csv"
 	"github.com/IrwantoCia/utility/internal/tui/s3"
+	"github.com/IrwantoCia/utility/internal/tui/sqlite"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 	"github.com/IrwantoCia/utility/internal/tui/transcribe"
 )
@@ -167,6 +168,7 @@ func Run() {
 			{name: "CSV", description: "View and search CSV files with table display", component: csv.New()},
 			{name: "S3", description: "Browse and manage S3 buckets and objects", component: s3.New()},
 			{name: "Transcribe", description: "Speech-to-text transcription", component: transcribe.New()},
+			{name: "SQLite", description: "Browse and query SQLite databases", component: sqlite.New()},
 		},
 	}
 	p := tea.NewProgram(m)
