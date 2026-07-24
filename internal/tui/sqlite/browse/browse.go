@@ -87,8 +87,9 @@ func (b *Browse) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	b.midW = ws.Width - b.leftW - b.rightW
 
 	leftWS := tea.WindowSizeMsg{Width: b.leftW - 4, Height: b.innerH}
+	midWS := tea.WindowSizeMsg{Width: b.midW - 4, Height: b.innerH}
 
-	return b.tables.Resize(leftWS)
+	return tea.Batch(b.tables.Resize(leftWS), b.data.Resize(midWS))
 }
 
 // View renders the three bordered panels and help footer.
@@ -101,7 +102,7 @@ func (b *Browse) View() string {
 // renderPanels builds the three bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
 	tablesView := b.wrapPanel(b.tables.View(), b.leftW, b.focus == focusTables, false, "Tables")
-	schemaView := b.wrapPanel(b.data.View(b.midW-4), b.midW, b.focus == focusSchema, false, "Data")
+	schemaView := b.wrapPanel(b.data.View(), b.midW, b.focus == focusSchema, false, "Data")
 	detailsView := b.wrapPanel(b.details.View(b.rightW-4), b.rightW, false, false, "Info")
 	return lipgloss.JoinHorizontal(lipgloss.Top, tablesView, schemaView, detailsView)
 }
@@ -171,30 +172,42 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			return func() tea.Msg { return BackToSqliteMenuMsg{} }
 		}
 		if key.Matches(msg, b.keys.Up) {
-			if b.focus == focusTables {
+			switch b.focus {
+			case focusTables:
 				b.tables.MoveUp()
 				b.syncPanels()
+			case focusSchema:
+				b.data.ScrollUp()
 			}
 			return nil
 		}
 		if key.Matches(msg, b.keys.Down) {
-			if b.focus == focusTables {
+			switch b.focus {
+			case focusTables:
 				b.tables.MoveDown()
 				b.syncPanels()
+			case focusSchema:
+				b.data.ScrollDown()
 			}
 			return nil
 		}
 		if key.Matches(msg, b.keys.PgUp) {
-			if b.focus == focusTables {
+			switch b.focus {
+			case focusTables:
 				b.tables.PageUp()
 				b.syncPanels()
+			case focusSchema:
+				b.data.PageUp()
 			}
 			return nil
 		}
 		if key.Matches(msg, b.keys.PgDown) {
-			if b.focus == focusTables {
+			switch b.focus {
+			case focusTables:
 				b.tables.PageDown()
 				b.syncPanels()
+			case focusSchema:
+				b.data.PageDown()
 			}
 			return nil
 		}
