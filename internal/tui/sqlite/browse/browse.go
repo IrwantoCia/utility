@@ -177,7 +177,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 				b.tables.MoveUp()
 				b.syncPanels()
 			case focusSchema:
-				b.data.ScrollUp()
+				b.data.MoveUp()
 			}
 			return nil
 		}
@@ -187,7 +187,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 				b.tables.MoveDown()
 				b.syncPanels()
 			case focusSchema:
-				b.data.ScrollDown()
+				b.data.MoveDown()
 			}
 			return nil
 		}

@@ -18,13 +18,16 @@ import (
 const defaultLimit = 100
 
 // Data renders the middle panel showing actual data rows from the currently
-// selected table in a tabular format, with vertical scrolling via viewport.
+// selected table in a tabular format, with vertical scrolling via viewport
+// and cursor-based row highlighting.
 type Data struct {
 	db        *sqlite.DB
 	tableName string
 	rows      [][]string
 	colNames  []string
 	errMsg    string
+	cursor    int
+	selectedStyle lipgloss.Style
 	viewport  viewport.Model
 }
 
@@ -33,8 +36,10 @@ var _ common.Component = (*Data)(nil)
 // New creates a Data panel backed by a live DB connection.
 func New(db *sqlite.DB) *Data {
 	return &Data{
-		db:       db,
-		viewport: viewport.New(),
+		db:            db,
+		cursor:        0,
+		selectedStyle: style.Default.RowHighlighted,
+		viewport:      viewport.New(),
 	}
 }
 
@@ -51,7 +56,8 @@ func (d *Data) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	return nil
 }
 
-// View renders the data preview through the scrollable viewport.
+// View renders the data preview through the scrollable viewport with cursor
+// highlighting and auto-scroll.
 func (d *Data) View() string {
 	if d.errMsg != "" {
 		d.viewport.SetContent(style.Default.BrowseEmpty.Render(d.errMsg))
@@ -76,10 +82,13 @@ func (d *Data) View() string {
 			if row == table.HeaderRow {
 				return style.Default.TableHeader
 			}
-			if row%2 == 0 {
-				return style.Default.TableRowAlt
+			if row == d.cursor {
+				return d.selectedStyle.MaxHeight(1)
 			}
-			return lipgloss.NewStyle()
+			if row%2 == 0 {
+				return style.Default.TableRowAlt.MaxHeight(1)
+			}
+			return lipgloss.NewStyle().MaxHeight(1)
 		})
 
 	result := t.String()
@@ -88,7 +97,9 @@ func (d *Data) View() string {
 		fmt.Sprintf("\n%d row(s) shown (limit %d)", len(d.rows), defaultLimit),
 	)
 
-	d.viewport.SetContent(result + footer)
+	content := result + footer
+	d.viewport.SetContent(content)
+	d.viewport.SetYOffset(d.cursor)
 	return d.viewport.View()
 }
 
@@ -99,27 +110,37 @@ func (d *Data) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// ScrollUp scrolls the viewport up by one line.
-func (d *Data) ScrollUp() {
-	d.viewport.ScrollUp(1)
+// MoveUp decrements the cursor (clamped to 0) and scrolls the viewport.
+func (d *Data) MoveUp() {
+	if d.cursor > 0 {
+		d.cursor--
+		d.viewport.SetYOffset(d.cursor)
+	}
 }
 
-// ScrollDown scrolls the viewport down by one line.
-func (d *Data) ScrollDown() {
-	d.viewport.ScrollDown(1)
+// MoveDown increments the cursor (clamped to max row) and scrolls the viewport.
+func (d *Data) MoveDown() {
+	if d.cursor < len(d.rows)-1 {
+		d.cursor++
+		d.viewport.SetYOffset(d.cursor)
+	}
 }
 
-// PageUp scrolls the viewport up by one page.
+// PageUp moves the cursor up by one viewport height (clamped to 0).
 func (d *Data) PageUp() {
-	d.viewport.PageUp()
+	d.cursor = max(0, d.cursor-d.viewport.Height())
+	d.viewport.SetYOffset(d.cursor)
 }
 
-// PageDown scrolls the viewport down by one page.
+// PageDown moves the cursor down by one viewport height (clamped to max row).
 func (d *Data) PageDown() {
-	d.viewport.PageDown()
+	maxRow := max(0, len(d.rows)-1)
+	d.cursor = min(maxRow, d.cursor+d.viewport.Height())
+	d.viewport.SetYOffset(d.cursor)
 }
 
 // SetTable queries the selected table's data and stores rows for display.
+// Resets the cursor to the first row.
 func (d *Data) SetTable(name string) {
 	d.tableName = name
 	rows, colNames, err := d.db.Query(name, defaultLimit, 0)
@@ -127,6 +148,7 @@ func (d *Data) SetTable(name string) {
 		d.errMsg = fmt.Sprintf("Error: %v", err)
 		d.rows = nil
 		d.colNames = nil
+		d.cursor = 0
 		return
 	}
 	d.errMsg = ""
@@ -139,4 +161,5 @@ func (d *Data) SetTable(name string) {
 		}
 		d.rows[i] = strRow
 	}
+	d.cursor = 0
 }
