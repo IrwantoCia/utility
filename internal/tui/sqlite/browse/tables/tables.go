@@ -3,20 +3,24 @@
 package tables
 
 import (
+	"fmt"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/IrwantoCia/utility/internal/helper/sqlite"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
-// Tables renders a scrollable list of placeholder table names in the left
-// panel of the SQLite browser.
+// Tables renders a scrollable list of table names in the left panel of the
+// SQLite browser, populated from the live database.
 type Tables struct {
+	db         *sqlite.DB
 	items      []string
 	cursor     int
 	maxVisible int
 	offset     int
+	errMsg     string
 }
 
 var _ common.Component = (*Tables)(nil)
@@ -24,26 +28,28 @@ var _ common.Component = (*Tables)(nil)
 // Close implements common.Component.
 func (t *Tables) Close() tea.Cmd { return nil }
 
-// New creates a Tables panel pre-populated with placeholder table names.
-func New() *Tables {
+// New creates a Tables panel backed by a live DB connection.
+func New(db *sqlite.DB) *Tables {
 	return &Tables{
-		items: []string{
-			"users",
-			"orders",
-			"products",
-			"categories",
-			"inventory",
-			"reviews",
-			"payments",
-			"sessions",
-			"settings",
-			"audit_log",
-		},
+		db:    db,
+		items: []string{},
 	}
 }
 
-// Init is a no-op for the static placeholder list.
-func (t *Tables) Init() tea.Cmd { return nil }
+// Init queries the database for the list of user tables.
+func (t *Tables) Init() tea.Cmd {
+	names, err := t.db.Tables()
+	if err != nil {
+		t.errMsg = fmt.Sprintf("Error: %v", err)
+		return nil
+	}
+	t.errMsg = ""
+	t.items = names
+	if t.cursor >= len(t.items) {
+		t.cursor = 0
+	}
+	return nil
+}
 
 // Resize sets the maximum visible rows based on window height.
 func (t *Tables) Resize(ws tea.WindowSizeMsg) tea.Cmd {
@@ -54,6 +60,9 @@ func (t *Tables) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 // View renders the table list with the cursor row highlighted,
 // or an empty-state message when the list is empty.
 func (t *Tables) View() string {
+	if t.errMsg != "" {
+		return style.Default.BrowseEmpty.Render(t.errMsg)
+	}
 	if len(t.items) > 0 {
 		var sb strings.Builder
 		end := t.offset + t.maxVisible

@@ -1,30 +1,66 @@
 // Package details provides the right panel of the SQLite browser, showing
-// metadata about the selected table (row count, size, indexes).
+// metadata about the selected table (row count, indexes).
 package details
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/IrwantoCia/utility/internal/helper/sqlite"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
 // Details renders the right panel showing metadata about the selected table.
 type Details struct {
+	db        *sqlite.DB
 	tableName string
-	rowCount  int
+	rowCount  int64
+	indexes   []sqlite.Index
+	errMsg    string
 }
 
-// New creates a Details panel with no table selected.
-func New() *Details {
-	return &Details{}
+// New creates a Details panel backed by a live DB connection.
+func New(db *sqlite.DB) *Details {
+	return &Details{db: db}
 }
 
-// SetTable updates the panel to show details for the named table.
-func (d *Details) SetTable(name string, rowCount int) {
+// SetTable updates the panel by querying row count and indexes for the named table.
+func (d *Details) SetTable(name string) {
 	d.tableName = name
-	d.rowCount = rowCount
+	d.errMsg = ""
+
+	count, err := d.db.RowCount(name)
+	if err != nil {
+		d.errMsg = fmt.Sprintf("Error: %v", err)
+		return
+	}
+	d.rowCount = count
+
+	indexes, err := d.db.Indexes(name)
+	if err != nil {
+		d.errMsg = fmt.Sprintf("Error: %v", err)
+		return
+	}
+	d.indexes = indexes
+}
+
+// formatRowCount formats an int64 with comma separators.
+func formatRowCount(n int64) string {
+	s := strconv.FormatInt(n, 10)
+	if len(s) <= 3 {
+		return s
+	}
+	var parts []string
+	for i := len(s); i > 0; i -= 3 {
+		start := i - 3
+		if start < 0 {
+			start = 0
+		}
+		parts = append([]string{s[start:i]}, parts...)
+	}
+	return strings.Join(parts, ",")
 }
 
 // View renders the details panel content.
@@ -32,6 +68,10 @@ func (d *Details) View(width int) string {
 	labelStyle := style.Default.BrowseMetaLabel
 	valStyle := style.Default.BrowseMetaValue
 	dimStyle := style.Default.BrowseMetaDim
+
+	if d.errMsg != "" {
+		return style.Default.BrowseEmpty.Render(d.errMsg)
+	}
 
 	if d.tableName == "" {
 		return style.Default.BrowseEmpty.Render("Select a table to view details")
@@ -49,61 +89,26 @@ func (d *Details) View(width int) string {
 
 	var lines []string
 	lines = append(lines, sectionTitle("Table Info"), "")
-
-	info := d.getInfo()
 	lines = append(lines,
 		row("Table:", d.tableName),
-		row("Rows:", info.rows),
-		row("Size:", info.size),
+		row("Rows:", formatRowCount(d.rowCount)),
 		"",
 		sectionTitle("Indexes"), "",
 	)
 
-	if info.indexes != "" {
-		lines = append(lines, dimStyle.Render("  "+info.indexes))
+	if len(d.indexes) > 0 {
+		for _, idx := range d.indexes {
+			colList := strings.Join(idx.Columns, ", ")
+			unique := ""
+			if idx.Unique {
+				unique = " (UNIQUE)"
+			}
+			lines = append(lines, dimStyle.Render(fmt.Sprintf("  %s%s ON (%s)", idx.Name, unique, colList)))
+		}
 	} else {
 		lines = append(lines, dimStyle.Render("  —"))
 	}
 
-	if info.created != "" {
-		lines = append(lines, "", sectionTitle("Created"), "")
-		lines = append(lines, valStyle.Render("  "+info.created))
-	}
-
 	content := strings.Join(lines, "\n")
 	return lipgloss.NewStyle().Width(width).Render(content)
-}
-
-type tableInfo struct {
-	rows    string
-	size    string
-	indexes string
-	created string
-}
-
-// getInfo returns hardcoded placeholder details for the selected table.
-func (d *Details) getInfo() tableInfo {
-	switch d.tableName {
-	case "users":
-		return tableInfo{
-			rows:    "1,204",
-			size:    "2.4 MB",
-			indexes: "id_idx, email_idx",
-			created: "2024-01-15",
-		}
-	case "orders":
-		return tableInfo{
-			rows:    "892",
-			size:    "1.1 MB",
-			indexes: "id_idx, user_id_idx",
-			created: "",
-		}
-	default:
-		return tableInfo{
-			rows:    "—",
-			size:    "—",
-			indexes: "—",
-			created: "",
-		}
-	}
 }

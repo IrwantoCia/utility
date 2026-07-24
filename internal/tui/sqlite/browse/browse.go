@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	sqhelper "github.com/IrwantoCia/utility/internal/helper/sqlite"
 	"github.com/IrwantoCia/utility/internal/tui/common"
 	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/details"
 	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/schema"
@@ -27,6 +28,7 @@ const (
 
 // Browse coordinates the 3-panel SQLite browser (Tables + Schema + Details).
 type Browse struct {
+	db      *sqhelper.DB
 	tables  *tables.Tables
 	schema  *schema.Schema
 	details *details.Details
@@ -45,27 +47,31 @@ type Browse struct {
 var _ common.Component = (*Browse)(nil)
 
 // Close implements common.Component.
-func (b *Browse) Close() tea.Cmd { return nil }
+func (b *Browse) Close() tea.Cmd {
+	b.db.Close()
+	return nil
+}
 
-// New creates a new Browse coordinator with placeholder data.
-func New() *Browse {
+// New creates a new Browse coordinator with a live DB connection.
+func New(db *sqhelper.DB) *Browse {
 	hm := help.New()
 	hm.Styles = BrowseHelpStyles()
 	return &Browse{
-		tables:    tables.New(),
-		schema:    schema.New(),
-		details:   details.New(),
-		focus:     focusTables,
-		keys:      DefaultKeyMap,
+		db:      db,
+		tables:  tables.New(db),
+		schema:  schema.New(db),
+		details: details.New(db),
+		focus:   focusTables,
+		keys:    DefaultKeyMap,
 		helpModel: hm,
 	}
 }
 
-// Init sets the initial table selection on all panels.
+// Init loads table list and populates schema/details for the first table.
 func (b *Browse) Init() tea.Cmd {
-	b.schema.SetTable("users")
-	b.details.SetTable("users", 1204)
-	return b.tables.Init()
+	b.tables.Init()
+	b.syncPanels()
+	return nil
 }
 
 // Resize computes the 3-column layout and forwards adjusted sizes to sub-panels.
@@ -241,15 +247,5 @@ func (b *Browse) syncPanels() {
 	}
 
 	b.schema.SetTable(selected)
-
-	rowCount := 0
-	switch selected {
-	case "users":
-		rowCount = 1204
-	case "orders":
-		rowCount = 892
-	default:
-		rowCount = 0
-	}
-	b.details.SetTable(selected, rowCount)
+	b.details.SetTable(selected)
 }

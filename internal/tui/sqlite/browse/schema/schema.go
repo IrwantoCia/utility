@@ -7,24 +7,36 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
+	"github.com/IrwantoCia/utility/internal/helper/sqlite"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
 // Schema renders the middle panel showing columns of the currently selected
 // table, with a tab to toggle between Schema and Data preview views.
 type Schema struct {
+	db        *sqlite.DB
 	tableName string
+	columns   []sqlite.Column
+	errMsg    string
 	tab       int // 0 = Schema, 1 = Data preview
 }
 
-// New creates a Schema panel with no table selected.
-func New() *Schema {
-	return &Schema{}
+// New creates a Schema panel backed by a live DB connection.
+func New(db *sqlite.DB) *Schema {
+	return &Schema{db: db}
 }
 
-// SetTable switches the displayed columns to the given table.
+// SetTable switches the displayed columns to the given table by querying the DB.
 func (s *Schema) SetTable(name string) {
 	s.tableName = name
+	cols, err := s.db.Columns(name)
+	if err != nil {
+		s.errMsg = fmt.Sprintf("Error: %v", err)
+		s.columns = nil
+		return
+	}
+	s.errMsg = ""
+	s.columns = cols
 }
 
 // View renders the schema or data preview panel content.
@@ -32,6 +44,10 @@ func (s *Schema) View(width int) string {
 	labelStyle := style.Default.BrowseMetaLabel
 	valStyle := style.Default.BrowseMetaValue
 	dimStyle := style.Default.BrowseMetaDim
+
+	if s.errMsg != "" {
+		return style.Default.BrowseEmpty.Render(s.errMsg)
+	}
 
 	if s.tableName == "" {
 		return style.Default.BrowseEmpty.Render("Select a table to view schema")
@@ -66,7 +82,7 @@ func (s *Schema) View(width int) string {
 		content := lipgloss.JoinVertical(lipgloss.Left,
 			tabs,
 			"",
-			style.Default.BrowseEmpty.Render("📋 No data loaded yet"),
+			style.Default.BrowseEmpty.Render("No data loaded yet"),
 			"",
 			dimStyle.Render("  Load data from within the app"),
 		)
@@ -78,48 +94,22 @@ func (s *Schema) View(width int) string {
 	rows = append(rows, tabs, "")
 	rows = append(rows, sectionTitle("Columns for "+s.tableName), "")
 
-	columns := s.getColumns()
-	for _, col := range columns {
-		lbl := labelStyle.Render(col.name)
-		val := valStyle.Render(col.typ)
-		row := fmt.Sprintf("  %s  %s", lbl, val)
-		rows = append(rows, row)
+	for _, col := range s.columns {
+		lbl := labelStyle.Render(col.Name)
+		val := valStyle.Render(col.Type)
+		line := fmt.Sprintf("  %s  %s", lbl, val)
+		if col.NotNull {
+			line += "  " + dimStyle.Render("NOT NULL")
+		}
+		if col.PK {
+			line += "  " + dimStyle.Render("PK")
+		}
+		if col.Default.Valid {
+			line += "  " + dimStyle.Render("DEFAULT: "+col.Default.String)
+		}
+		rows = append(rows, line)
 	}
 
 	content := strings.Join(rows, "\n")
 	return lipgloss.NewStyle().Width(width).Render(content)
-}
-
-type columnDef struct {
-	name string
-	typ  string
-}
-
-// getColumns returns hardcoded placeholder column definitions for the current
-// table name.
-func (s *Schema) getColumns() []columnDef {
-	switch s.tableName {
-	case "users":
-		return []columnDef{
-			{"id", "INTEGER PK NOT NULL"},
-			{"name", "TEXT NOT NULL"},
-			{"email", "TEXT UNIQUE NOT NULL"},
-			{"created_at", "DATETIME DEFAULT CURRENT_TIMESTAMP"},
-			{"active", "INTEGER DEFAULT 1"},
-		}
-	case "orders":
-		return []columnDef{
-			{"id", "INTEGER PK"},
-			{"user_id", "INTEGER FK"},
-			{"total", "REAL"},
-			{"status", "TEXT"},
-			{"created_at", "DATETIME"},
-		}
-	default:
-		return []columnDef{
-			{"id", "INTEGER PRIMARY KEY"},
-			{"name", "TEXT"},
-			{"created_at", "DATETIME"},
-		}
-	}
 }
