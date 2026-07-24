@@ -1,5 +1,5 @@
 // Package schema provides the middle panel of the SQLite browser, showing
-// column definitions for the selected table with tab toggling.
+// query results (data preview) for the selected table — no tab switching.
 package schema
 
 import (
@@ -11,14 +11,17 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
-// Schema renders the middle panel showing columns of the currently selected
-// table, with a tab to toggle between Schema and Data preview views.
+// defaultLimit is the number of rows fetched per table query.
+const defaultLimit = 100
+
+// Schema renders the middle panel showing actual data rows from the currently
+// selected table in a tabular format.
 type Schema struct {
 	db        *sqlite.DB
 	tableName string
-	columns   []sqlite.Column
+	rows      []sqlite.Row
+	colNames  []string
 	errMsg    string
-	tab       int // 0 = Schema, 1 = Data preview
 }
 
 // New creates a Schema panel backed by a live DB connection.
@@ -26,90 +29,71 @@ func New(db *sqlite.DB) *Schema {
 	return &Schema{db: db}
 }
 
-// SetTable switches the displayed columns to the given table by querying the DB.
+// SetTable queries the selected table's data and stores rows for display.
 func (s *Schema) SetTable(name string) {
 	s.tableName = name
-	cols, err := s.db.Columns(name)
+	rows, colNames, err := s.db.Query(name, defaultLimit, 0)
 	if err != nil {
 		s.errMsg = fmt.Sprintf("Error: %v", err)
-		s.columns = nil
+		s.rows = nil
+		s.colNames = nil
 		return
 	}
 	s.errMsg = ""
-	s.columns = cols
+	s.rows = rows
+	s.colNames = colNames
 }
 
-// View renders the schema or data preview panel content.
+// View renders the data preview as a table with column headers and row values.
 func (s *Schema) View(width int) string {
+	dimStyle := style.Default.BrowseMetaDim
 	labelStyle := style.Default.BrowseMetaLabel
 	valStyle := style.Default.BrowseMetaValue
-	dimStyle := style.Default.BrowseMetaDim
 
 	if s.errMsg != "" {
 		return style.Default.BrowseEmpty.Render(s.errMsg)
 	}
 
 	if s.tableName == "" {
-		return style.Default.BrowseEmpty.Render("Select a table to view schema")
+		return style.Default.BrowseEmpty.Render("Select a table to view data")
 	}
 
-	// ── Tab headers ──
-	schemaTab := "Schema"
-	dataTab := "Data Preview"
-	if s.tab == 0 {
-		schemaTab = lipgloss.NewStyle().Underline(true).Render("Schema")
-		dataTab = dimStyle.Render("Data Preview")
-	} else {
-		schemaTab = dimStyle.Render("Schema")
-		dataTab = lipgloss.NewStyle().Underline(true).Render("Data Preview")
-	}
-	tabs := lipgloss.JoinHorizontal(lipgloss.Left,
-		style.Default.BrowseMetaSection.Render("["),
-		schemaTab,
-		style.Default.BrowseMetaSection.Render("]"),
-		style.Default.BrowseMetaSection.Render("  ["),
-		dataTab,
-		style.Default.BrowseMetaSection.Render("]"),
-	)
+	var b strings.Builder
 
-	// ── Section separator ──
-	sectionTitle := func(title string) string {
-		return style.Default.BrowseMetaSection.Render("── " + title + " ──")
-	}
-
-	if s.tab == 1 {
-		// Data preview tab
-		content := lipgloss.JoinVertical(lipgloss.Left,
-			tabs,
-			"",
-			style.Default.BrowseEmpty.Render("No data loaded yet"),
-			"",
-			dimStyle.Render("  Load data from within the app"),
-		)
-		return lipgloss.NewStyle().Width(width).Render(content)
-	}
-
-	// Schema tab
-	var rows []string
-	rows = append(rows, tabs, "")
-	rows = append(rows, sectionTitle("Columns for "+s.tableName), "")
-
-	for _, col := range s.columns {
-		lbl := labelStyle.Render(col.Name)
-		val := valStyle.Render(col.Type)
-		line := fmt.Sprintf("  %s  %s", lbl, val)
-		if col.NotNull {
-			line += "  " + dimStyle.Render("NOT NULL")
+	// ── Header row ──
+	for i, name := range s.colNames {
+		if i > 0 {
+			b.WriteString(" │ ")
 		}
-		if col.PK {
-			line += "  " + dimStyle.Render("PK")
+		b.WriteString(labelStyle.Render(name))
+	}
+	b.WriteByte('\n')
+
+	// ── Separator ──
+	sep := strings.Repeat("─", width-2)
+	b.WriteString(dimStyle.Render(sep))
+	b.WriteByte('\n')
+
+	// ── Data rows ──
+	for i, row := range s.rows {
+		for j, val := range row {
+			if j > 0 {
+				b.WriteString(" │ ")
+			}
+			str := fmt.Sprintf("%v", val)
+			if i%2 == 1 {
+				b.WriteString(dimStyle.Render(str))
+			} else {
+				b.WriteString(valStyle.Render(str))
+			}
 		}
-		if col.Default.Valid {
-			line += "  " + dimStyle.Render("DEFAULT: "+col.Default.String)
-		}
-		rows = append(rows, line)
+		b.WriteByte('\n')
 	}
 
-	content := strings.Join(rows, "\n")
+	// ── Footer ──
+	footer := dimStyle.Render(fmt.Sprintf("\n%d row(s) shown (limit %d)", len(s.rows), defaultLimit))
+	b.WriteString(footer)
+
+	content := b.String()
 	return lipgloss.NewStyle().Width(width).Render(content)
 }

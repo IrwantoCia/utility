@@ -1,5 +1,5 @@
 // Package browse provides the SQLite table browser TUI with a 3-panel
-// split-pane layout: Tables (left), Schema (middle), Details (right).
+// split-pane layout: Tables (left), Data (middle), Info (right).
 package browse
 
 import (
@@ -83,7 +83,7 @@ func (b *Browse) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	b.innerH = max(0, ws.Height-b.footerH-3) // 3 = top border + banner + bottom border
 
 	b.leftW = ws.Width * 25 / 100
-	b.midW = ws.Width * 45 / 100
+	b.midW = ws.Width * 40 / 100
 	b.rightW = ws.Width - b.leftW - b.midW
 
 	leftWS := tea.WindowSizeMsg{Width: b.leftW - 4, Height: b.innerH}
@@ -101,8 +101,8 @@ func (b *Browse) View() string {
 // renderPanels builds the three bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
 	tablesView  := b.wrapPanel(b.tables.View(), b.leftW, b.focus == focusTables, false, "Tables")
-	schemaView  := b.wrapPanel(b.schema.View(b.midW-4), b.midW, b.focus == focusSchema, false, "Schema")
-	detailsView := b.wrapPanel(b.details.View(b.rightW-4), b.rightW, false, false, "Details")
+	schemaView  := b.wrapPanel(b.schema.View(b.midW-4), b.midW, b.focus == focusSchema, false, "Data")
+	detailsView := b.wrapPanel(b.details.View(b.rightW-4), b.rightW, false, false, "Info")
 	return lipgloss.JoinHorizontal(lipgloss.Top, tablesView, schemaView, detailsView)
 }
 

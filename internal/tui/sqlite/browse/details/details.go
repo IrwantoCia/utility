@@ -1,5 +1,6 @@
 // Package details provides the right panel of the SQLite browser, showing
-// metadata about the selected table (row count, indexes).
+// a merged view of column definitions, row count, and indexes for the
+// selected table.
 package details
 
 import (
@@ -12,10 +13,12 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
-// Details renders the right panel showing metadata about the selected table.
+// Details renders the right panel showing column metadata, row count, and
+// indexes for the selected table.
 type Details struct {
 	db        *sqlite.DB
 	tableName string
+	columns   []sqlite.Column
 	rowCount  int64
 	indexes   []sqlite.Index
 	errMsg    string
@@ -26,10 +29,18 @@ func New(db *sqlite.DB) *Details {
 	return &Details{db: db}
 }
 
-// SetTable updates the panel by querying row count and indexes for the named table.
+// SetTable updates the panel by querying columns, row count, and indexes
+// for the named table.
 func (d *Details) SetTable(name string) {
 	d.tableName = name
 	d.errMsg = ""
+
+	cols, err := d.db.Columns(name)
+	if err != nil {
+		d.errMsg = fmt.Sprintf("Error: %v", err)
+		return
+	}
+	d.columns = cols
 
 	count, err := d.db.RowCount(name)
 	if err != nil {
@@ -74,7 +85,7 @@ func (d *Details) View(width int) string {
 	}
 
 	if d.tableName == "" {
-		return style.Default.BrowseEmpty.Render("Select a table to view details")
+		return style.Default.BrowseEmpty.Render("Select a table to view info")
 	}
 
 	sectionTitle := func(title string) string {
@@ -88,13 +99,34 @@ func (d *Details) View(width int) string {
 	}
 
 	var lines []string
-	lines = append(lines, sectionTitle("Table Info"), "")
+
+	// ── Columns section ──
+	lines = append(lines, sectionTitle("Columns"), "")
+	for _, col := range d.columns {
+		var parts []string
+		parts = append(parts, fmt.Sprintf("  %s : %s", labelStyle.Render(col.Name), valStyle.Render(col.Type)))
+		if col.PK {
+			parts = append(parts, dimStyle.Render("PRIMARY KEY"))
+		}
+		if col.NotNull {
+			parts = append(parts, dimStyle.Render("NOT NULL"))
+		}
+		if col.Default.Valid {
+			parts = append(parts, dimStyle.Render("DEFAULT "+col.Default.String))
+		}
+		lines = append(lines, strings.Join(parts, "  "))
+	}
+
+	// ── Table info ──
+	lines = append(lines, "",
+		sectionTitle("Table Info"), "")
 	lines = append(lines,
 		row("Table:", d.tableName),
-		row("Rows:", formatRowCount(d.rowCount)),
-		"",
-		sectionTitle("Indexes"), "",
-	)
+		row("Rows:", formatRowCount(d.rowCount)))
+
+	// ── Indexes section ──
+	lines = append(lines, "",
+		sectionTitle("Indexes"), "")
 
 	if len(d.indexes) > 0 {
 		for _, idx := range d.indexes {
