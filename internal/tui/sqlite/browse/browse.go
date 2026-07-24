@@ -10,8 +10,8 @@ import (
 
 	sqhelper "github.com/IrwantoCia/utility/internal/helper/sqlite"
 	"github.com/IrwantoCia/utility/internal/tui/common"
-	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/details"
 	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/data"
+	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/details"
 	"github.com/IrwantoCia/utility/internal/tui/sqlite/browse/tables"
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
@@ -30,7 +30,7 @@ const (
 type Browse struct {
 	db      *sqhelper.DB
 	tables  *tables.Tables
-	data  *data.Data
+	data    *data.Data
 	details *details.Details
 
 	focus      panelFocus
@@ -57,12 +57,12 @@ func New(db *sqhelper.DB) *Browse {
 	hm := help.New()
 	hm.Styles = BrowseHelpStyles()
 	return &Browse{
-		db:      db,
-		tables:  tables.New(db),
-		data:  data.New(db),
-		details: details.New(db),
-		focus:   focusTables,
-		keys:    DefaultKeyMap,
+		db:        db,
+		tables:    tables.New(db),
+		data:      data.New(db),
+		details:   details.New(db),
+		focus:     focusTables,
+		keys:      DefaultKeyMap,
 		helpModel: hm,
 	}
 }
@@ -82,9 +82,9 @@ func (b *Browse) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	b.footerH = 1
 	b.innerH = max(0, ws.Height-b.footerH-3) // 3 = top border + banner + bottom border
 
-	b.leftW = ws.Width * 25 / 100
-	b.midW = ws.Width * 40 / 100
-	b.rightW = ws.Width - b.leftW - b.midW
+	b.leftW = ws.Width * 15 / 100
+	b.rightW = ws.Width * 25 / 100
+	b.midW = ws.Width - b.leftW - b.rightW
 
 	leftWS := tea.WindowSizeMsg{Width: b.leftW - 4, Height: b.innerH}
 
@@ -100,8 +100,8 @@ func (b *Browse) View() string {
 
 // renderPanels builds the three bordered panels joined horizontally.
 func (b *Browse) renderPanels() string {
-	tablesView  := b.wrapPanel(b.tables.View(), b.leftW, b.focus == focusTables, false, "Tables")
-	schemaView  := b.wrapPanel(b.data.View(b.midW-4), b.midW, b.focus == focusSchema, false, "Data")
+	tablesView := b.wrapPanel(b.tables.View(), b.leftW, b.focus == focusTables, false, "Tables")
+	schemaView := b.wrapPanel(b.data.View(b.midW-4), b.midW, b.focus == focusSchema, false, "Data")
 	detailsView := b.wrapPanel(b.details.View(b.rightW-4), b.rightW, false, false, "Info")
 	return lipgloss.JoinHorizontal(lipgloss.Top, tablesView, schemaView, detailsView)
 }
