@@ -29,7 +29,7 @@ var _ common.Component = (*FilePicker)(nil)
 // Close implements common.Component.
 func (f *FilePicker) Close() tea.Cmd { return nil }
 
-func New() *FilePicker {
+func New(allowedTypes ...string) *FilePicker {
 	m := fp.New()
 	m.CurrentDirectory, _ = os.Getwd()
 	m.ShowPermissions = false
@@ -37,6 +37,10 @@ func New() *FilePicker {
 		key.WithKeys("h", "backspace", "left"),
 		key.WithHelp("h", "back"),
 	)
+
+	if len(allowedTypes) > 0 {
+		m.AllowedTypes = allowedTypes
+	}
 
 	return &FilePicker{
 		Model:     m,

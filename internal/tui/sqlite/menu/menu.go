@@ -75,7 +75,7 @@ func New() *Menu {
 		},
 		keys:      DefaultKeyMap,
 		helpModel: help.New(),
-		picker:    filepicker.New(),
+		picker:    filepicker.New(".db", ".sqlite", ".sqlite3", ".db3"),
 	}
 }
 

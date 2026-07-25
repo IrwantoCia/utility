@@ -161,7 +161,7 @@ func New() *Transcribe {
 		},
 		keys:              DefaultKeyMap,
 		helpModel:         help.New(),
-		picker:            filepicker.New(),
+		picker:            filepicker.New(".mp3", ".wav", ".mp4", ".m4a", ".flac", ".ogg", ".webm"),
 		status:            statusbar.New(),
 		progressBar:       progressbar.New(),
 		whisperModels:     models,
