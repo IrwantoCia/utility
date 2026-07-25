@@ -3,7 +3,9 @@
 package data
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
 	"strings"
 	"unicode/utf8"
 
@@ -181,6 +183,45 @@ func (d *Data) rowChangedCmd() tea.Cmd {
 				Values:   d.rows[d.cursor],
 			}
 		}
+		return nil
+	}
+}
+
+// copyToClipboard pipes text into the system clipboard using xclip (X11) or
+// wl-copy (Wayland). Returns an error if neither tool is available.
+func copyToClipboard(text string) error {
+	if path, err := exec.LookPath("xclip"); err == nil {
+		cmd := exec.Command(path, "-selection", "clipboard")
+		cmd.Stdin = strings.NewReader(text)
+		return cmd.Run()
+	}
+	if path, err := exec.LookPath("wl-copy"); err == nil {
+		cmd := exec.Command(path)
+		cmd.Stdin = strings.NewReader(text)
+		return cmd.Run()
+	}
+	return fmt.Errorf("no clipboard tool found (install xclip or wl-copy)")
+}
+
+// copyRowJSON builds a map of column→value from the currently highlighted row,
+// marshals it to compact JSON, and copies it to the system clipboard.
+// Returns a silent tea.Cmd (no message emitted).
+func (d *Data) CopyRowJSON() tea.Cmd {
+	return func() tea.Msg {
+		if d.cursor < 0 || d.cursor >= len(d.rows) {
+			return nil
+		}
+		row := make(map[string]interface{}, len(d.colNames))
+		for i, col := range d.colNames {
+			if i < len(d.rows[d.cursor]) {
+				row[col] = d.rows[d.cursor][i]
+			}
+		}
+		jsonBytes, err := json.Marshal(row)
+		if err != nil {
+			return nil
+		}
+		copyToClipboard(string(jsonBytes))
 		return nil
 	}
 }

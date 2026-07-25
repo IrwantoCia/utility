@@ -310,6 +310,8 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			return b.data.PageUp()
 		case key.Matches(keyMsg, b.keys.PgDown):
 			return b.data.PageDown()
+		case key.Matches(keyMsg, b.keys.Copy):
+			return b.data.CopyRowJSON()
 		}
 	}
 

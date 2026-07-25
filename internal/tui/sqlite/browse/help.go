@@ -19,6 +19,7 @@ type KeyMap struct {
 	PgUp   key.Binding
 	PgDown key.Binding
 	Filter key.Binding
+	Copy   key.Binding
 }
 
 // DefaultKeyMap is the default set of key bindings for the browse page.
@@ -32,10 +33,11 @@ var DefaultKeyMap = KeyMap{
 	PgUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "pg up")),
 	PgDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "pg down")),
 	Filter: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+	Copy:   key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy")),
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.Up, km.Down, km.PgUp, km.PgDown, km.Enter, km.Left, km.Filter, km.Esc}
+	return []key.Binding{km.Up, km.Down, km.PgUp, km.PgDown, km.Enter, km.Left, km.Filter, km.Copy, km.Esc}
 }
 
 func (km KeyMap) FullHelp() [][]key.Binding {
