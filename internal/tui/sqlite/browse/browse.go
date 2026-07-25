@@ -234,35 +234,37 @@ func (b *Browse) renderSubPanel(content string, w, h int, active bool, title str
 		Render(inner)
 }
 
-// nextFocus returns the next panel in the focus cycle (Tables → Filter → Data → Details).
-func (b *Browse) nextFocus() panelFocus {
+// focusRight implements the custom right-arrow jump. From Tables → Data,
+// Filter → Info, Data → Info, Info → Info (no-op).
+func (b *Browse) focusRight() panelFocus {
 	switch b.focus {
 	case focusTables:
-		return focusFilter
-	case focusFilter:
 		return focusData
+	case focusFilter:
+		return focusDetails
 	case focusData:
 		return focusDetails
 	case focusDetails:
-		return focusTables
+		return focusDetails
 	default:
 		return focusTables
 	}
 }
 
-// prevFocus returns the previous panel in the focus cycle (Tables ← Filter ← Data ← Details).
-func (b *Browse) prevFocus() panelFocus {
+// focusLeft implements the custom left-arrow jump. From Tables → Tables (no-op),
+// Filter → Tables, Data → Tables, Info → Data.
+func (b *Browse) focusLeft() panelFocus {
 	switch b.focus {
 	case focusTables:
-		return focusDetails
+		return focusTables
 	case focusFilter:
 		return focusTables
 	case focusData:
-		return focusFilter
+		return focusTables
 	case focusDetails:
 		return focusData
 	default:
-		return focusData
+		return focusTables
 	}
 }
 
@@ -272,6 +274,13 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 	// Delegate resize to all panels.
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
 		return b.Resize(ws)
+	}
+
+	// ── FocusDataMsg: filter panel wants focus on Data panel ──────
+	if _, ok := msg.(filter.FocusDataMsg); ok {
+		b.focus = focusData
+		b.syncPanels()
+		return nil
 	}
 
 	keyMsg, isKey := msg.(tea.KeyPressMsg)
@@ -307,13 +316,18 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 		if key.Matches(keyMsg, b.keys.Esc) {
 			return func() tea.Msg { return BackToSqliteMenuMsg{} }
 		}
-		if key.Matches(keyMsg, b.keys.Tab) || key.Matches(keyMsg, b.keys.Right) {
-			b.focus = b.nextFocus()
+		if key.Matches(keyMsg, b.keys.Filter) {
+			b.focus = focusFilter
+			b.syncPanels()
+			return nil
+		}
+		if key.Matches(keyMsg, b.keys.Right) {
+			b.focus = b.focusRight()
 			b.syncPanels()
 			return nil
 		}
 		if key.Matches(keyMsg, b.keys.Left) {
-			b.focus = b.prevFocus()
+			b.focus = b.focusLeft()
 			b.syncPanels()
 			return nil
 		}

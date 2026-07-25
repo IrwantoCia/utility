@@ -61,6 +61,11 @@ type FilterPanel struct {
 
 var _ common.Component = (*FilterPanel)(nil)
 
+// FocusDataMsg instructs the browse coordinator to move keyboard focus to the
+// Data panel. It is emitted when the filter panel is in normal mode and the
+// user presses Esc.
+type FocusDataMsg struct{}
+
 // consumedCmd is a no-op sentinel command returned when the filter panel
 // consumes a key event without producing a real command. It signals to the
 // coordinator that the key was handled.
@@ -296,8 +301,8 @@ func (f *FilterPanel) Update(msg tea.Msg) tea.Cmd {
 			}
 
 		case key.Matches(keyMsg, f.keys.Esc):
-			// Let the coordinator handle Esc (return to menu).
-			return nil
+			// Move focus to Data panel instead of returning to menu.
+			return func() tea.Msg { return FocusDataMsg{} }
 		}
 	}
 
@@ -330,9 +335,14 @@ func (f *FilterPanel) startEditingRow(i int) tea.Cmd {
 		f.textInput.SetValue("")
 		f.textInput.Focus()
 		return textinput.Blink
-	}
 
-	return consumedCmd
+	default:
+		// All fields filled — re-edit the value.
+		f.mode = modeEditingValue
+		f.textInput.SetValue(row.value)
+		f.textInput.Focus()
+		return textinput.Blink
+	}
 }
 
 // addNewFilter appends an empty filter row and starts column picking.

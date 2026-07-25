@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -213,6 +214,22 @@ func (db *DB) Query(table string, limit, offset int) ([]Row, []string, error) {
 	return db.QueryFiltered(table, nil, limit, offset)
 }
 
+// filterValue wraps a filter's value with % for LIKE/NOT LIKE for substring matching,
+// unless the value already starts or ends with %. Non-string values are returned as-is.
+func filterValue(f Filter) any {
+	if f.Op != OpLIKE && f.Op != OpNOTLIKE {
+		return f.Value
+	}
+	val, ok := f.Value.(string)
+	if !ok {
+		return f.Value
+	}
+	if strings.HasPrefix(val, "%") || strings.HasSuffix(val, "%") {
+		return val
+	}
+	return "%" + val + "%"
+}
+
 // QueryFiltered queries a table with optional filters and returns rows + column names.
 // The filters are applied using parameterized queries (no SQL injection).
 // limit and offset control pagination. If limit <= 0 it defaults to 100.
@@ -236,7 +253,7 @@ func (db *DB) QueryFiltered(table string, filters []Filter, limit, offset int) (
 			clause.WriteString(" ")
 			clause.WriteString(string(f.Op))
 			clause.WriteString(" ?")
-			args = append(args, f.Value)
+			args = append(args, filterValue(f))
 		}
 	}
 

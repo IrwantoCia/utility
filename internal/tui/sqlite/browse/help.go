@@ -18,24 +18,24 @@ type KeyMap struct {
 	Esc    key.Binding
 	PgUp   key.Binding
 	PgDown key.Binding
-	Tab    key.Binding
+	Filter key.Binding
 }
 
 // DefaultKeyMap is the default set of key bindings for the browse page.
 var DefaultKeyMap = KeyMap{
 	Up:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
 	Down:   key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-	Left:   key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev panel")),
-	Right:  key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next panel")),
+	Left:   key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "quick left")),
+	Right:  key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "quick right")),
 	Enter:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
 	Esc:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 	PgUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "pg up")),
 	PgDown: key.NewBinding(key.WithKeys("ctrl+d"), key.WithHelp("ctrl+d", "pg down")),
-	Tab:    key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "focus")),
+	Filter: key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
 }
 
 func (km KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{km.Up, km.Down, km.PgUp, km.PgDown, km.Enter, km.Left, km.Esc, km.Tab}
+	return []key.Binding{km.Up, km.Down, km.PgUp, km.PgDown, km.Enter, km.Left, km.Filter, km.Esc}
 }
 
 func (km KeyMap) FullHelp() [][]key.Binding {
