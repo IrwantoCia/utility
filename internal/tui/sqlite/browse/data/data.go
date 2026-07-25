@@ -109,7 +109,7 @@ func (d *Data) View() string {
 		Headers(d.colNames...).
 		Rows(truncatedRows...).
 		Width(width).
-		Border(lipgloss.NormalBorder()).
+		Border(lipgloss.ThickBorder()).
 		BorderStyle(style.Default.TableBorder).
 		Wrap(false).
 		StyleFunc(func(row, col int) lipgloss.Style {

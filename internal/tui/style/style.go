@@ -72,30 +72,38 @@ func DefaultStyles() Styles {
 			Bold(true).
 			PaddingLeft(1).
 			PaddingRight(1),
+		// RowHighlighted uses vivid amber ("220") with BLACK bold text so the
+		// cursor row flares like a hot focus marker against the obsidian surface.
+		// This is the strongest visual priority cue — unmistakable at a glance.
 		RowHighlighted: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("255")).
-			Background(lipgloss.Color("27")).
+			Foreground(lipgloss.Color("0")).
+			Background(lipgloss.Color("220")).
 			Padding(0, 1),
-		// TableBorder colors the table's NormalBorder in a dark teal ("30"),
-		// creating a recessed/inset depth step against the panel's bright cyan ("45") border.
+		// TableBorder frames the table in bright orange ("214") — a warm
+		// complement to the cool cyan ("45") panel border, creating a raised
+		// card illusion via color temperature contrast.
 		TableBorder: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("30")),
+			Foreground(lipgloss.Color("214")),
+		// TableHeader uses inverted styling: bright cyan ("39") bg + black bold
+		// text. This creates maximum contrast vs the dark body and reads as a
+		// sharply raised top bar — the brightest element in the table.
 		TableHeader: lipgloss.NewStyle().
 			Bold(true).
-			Underline(true).
-			Foreground(lipgloss.Color("255")).
+			Foreground(lipgloss.Color("0")).
 			Background(lipgloss.Color("39")).
 			Padding(0, 1),
-		// TableRow is the base style for data rows (non-alternating, non-highlighted).
-		// A dark background grounds the table as a solid surface for the 3D effect.
+		// TableRow is the base data row. Near-black ("233") bg + white ("255")
+		// fg yields maximum legibility — the darkest surface for text to pop.
 		TableRow: lipgloss.NewStyle().
-			Background(lipgloss.Color("236")).
+			Foreground(lipgloss.Color("255")).
+			Background(lipgloss.Color("233")).
 			Padding(0, 1),
-		// TableRowAlt uses a darker bg to create alternating depth contrast
-		// that complements the raised-table appearance.
+		// TableRowAlt uses a subtly lighter dark gray ("236") so alternating
+		// scanlines are perceptible without reducing text contrast.
 		TableRowAlt: lipgloss.NewStyle().
-			Background(lipgloss.Color("234")).
+			Foreground(lipgloss.Color("255")).
+			Background(lipgloss.Color("236")).
 			Padding(0, 1),
 		MenuItem: lipgloss.NewStyle().
 			PaddingLeft(2).
