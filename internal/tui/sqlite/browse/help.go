@@ -25,8 +25,8 @@ type KeyMap struct {
 var DefaultKeyMap = KeyMap{
 	Up:     key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
 	Down:   key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-	Left:   key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/→/h/l", "panel")),
-	Right:  key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("←/→/h/l", "panel")),
+	Left:   key.NewBinding(key.WithKeys("left", "h"), key.WithHelp("←/h", "prev panel")),
+	Right:  key.NewBinding(key.WithKeys("right", "l"), key.WithHelp("→/l", "next panel")),
 	Enter:  key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
 	Esc:    key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "back")),
 	PgUp:   key.NewBinding(key.WithKeys("ctrl+u"), key.WithHelp("ctrl+u", "pg up")),

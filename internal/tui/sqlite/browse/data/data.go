@@ -23,6 +23,7 @@ const defaultLimit = 100
 type Data struct {
 	db        *sqlite.DB
 	tableName string
+	filters   []sqlite.Filter
 	rows      [][]string
 	colNames  []string
 	errMsg    string
@@ -139,11 +140,12 @@ func (d *Data) PageDown() {
 	d.viewport.SetYOffset(d.cursor)
 }
 
-// SetTable queries the selected table's data and stores rows for display.
-// Resets the cursor to the first row.
-func (d *Data) SetTable(name string) {
+// SetTable queries the selected table's data with optional filters and stores
+// rows for display. Resets the cursor to the first row.
+func (d *Data) SetTable(name string, filters []sqlite.Filter) {
 	d.tableName = name
-	rows, colNames, err := d.db.Query(name, defaultLimit, 0)
+	d.filters = filters
+	rows, colNames, err := d.db.QueryFiltered(name, filters, defaultLimit, 0)
 	if err != nil {
 		d.errMsg = fmt.Sprintf("Error: %v", err)
 		d.rows = nil
