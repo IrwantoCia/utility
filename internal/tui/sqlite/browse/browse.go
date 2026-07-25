@@ -351,6 +351,7 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 				b.tables.PageDown()
 				b.syncPanels()
 			case key.Matches(keyMsg, b.keys.Enter):
+				b.focus = focusData
 				b.syncPanels()
 			}
 		case focusFilter:
