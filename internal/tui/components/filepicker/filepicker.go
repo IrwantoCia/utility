@@ -4,8 +4,10 @@ package filepicker
 import (
 	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"time"
+	"unsafe"
 
 	fp "charm.land/bubbles/v2/filepicker"
 	"charm.land/bubbles/v2/help"
@@ -60,6 +62,51 @@ func (f *FilePicker) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 	return cmd
 }
 
+func (f *FilePicker) canSelect(filename string) bool {
+	if len(f.Model.AllowedTypes) == 0 {
+		return true
+	}
+	for _, ext := range f.Model.AllowedTypes {
+		if strings.HasSuffix(filename, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *FilePicker) filterFiles() {
+	rv := reflect.ValueOf(&f.Model).Elem()
+	filesField := rv.FieldByName("files")
+	if !filesField.IsValid() {
+		return
+	}
+	if len(f.Model.AllowedTypes) == 0 {
+		return
+	}
+
+	// Read unexported field via unsafe pointer (bypasses Go 1.26 Interface() restriction)
+	entries := *(*[]os.DirEntry)(unsafe.Pointer(filesField.UnsafeAddr()))
+
+	filtered := make([]os.DirEntry, 0, len(entries))
+	for _, e := range entries {
+		if e.IsDir() || f.canSelect(e.Name()) {
+			filtered = append(filtered, e)
+		}
+	}
+
+	// Write back via unsafe pointer
+	*(*[]os.DirEntry)(unsafe.Pointer(filesField.UnsafeAddr())) = filtered
+
+	// Clamp selected field to prevent out-of-bounds
+	selField := rv.FieldByName("selected")
+	if selField.IsValid() {
+		sel := *(*int)(unsafe.Pointer(selField.UnsafeAddr()))
+		if sel >= len(filtered) {
+			*(*int)(unsafe.Pointer(selField.UnsafeAddr())) = 0
+		}
+	}
+}
+
 func (f *FilePicker) Update(msg tea.Msg) tea.Cmd {
 	switch msg.(type) {
 	case clearErrorMsg:
@@ -68,6 +115,8 @@ func (f *FilePicker) Update(msg tea.Msg) tea.Cmd {
 
 	var cmd tea.Cmd
 	f.Model, cmd = f.Model.Update(msg)
+
+	f.filterFiles()
 
 	if didSelect, path := f.Model.DidSelectFile(msg); didSelect {
 		f.SelectedFile = path
