@@ -283,6 +283,12 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 
+	// ── RowChangedMsg: Data panel cursor moved — update details ───
+	if rowMsg, ok := msg.(data.RowChangedMsg); ok {
+		b.details.SetRow(rowMsg.ColNames, rowMsg.Values)
+		return nil
+	}
+
 	keyMsg, isKey := msg.(tea.KeyPressMsg)
 
 	// ── Active panel delegation ────────────────────────────────────
@@ -297,17 +303,13 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 	if b.focus == focusData && isKey {
 		switch {
 		case key.Matches(keyMsg, b.keys.Up):
-			b.data.MoveUp()
-			return nil
+			return b.data.MoveUp()
 		case key.Matches(keyMsg, b.keys.Down):
-			b.data.MoveDown()
-			return nil
+			return b.data.MoveDown()
 		case key.Matches(keyMsg, b.keys.PgUp):
-			b.data.PageUp()
-			return nil
+			return b.data.PageUp()
 		case key.Matches(keyMsg, b.keys.PgDown):
-			b.data.PageDown()
-			return nil
+			return b.data.PageDown()
 		}
 	}
 
@@ -380,7 +382,8 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 
 // syncPanels updates data, filter, and details panels from the currently
 // selected table. It passes the current filter state to the data panel and
-// updates the filter panel's column list.
+// updates the filter panel's column list. After loading new table data, it
+// syncs the first row (cursor=0) to the info panel.
 func (b *Browse) syncPanels() {
 	selected := b.tables.Selected()
 	if selected == "" {
@@ -390,6 +393,13 @@ func (b *Browse) syncPanels() {
 	filters := b.filter.Filters()
 	b.data.SetTable(selected, filters)
 	b.details.SetTable(selected)
+
+	// Sync first row (cursor resets to 0 in SetTable) to the details panel.
+	if rows := b.data.Rows(); len(rows) > 0 {
+		b.details.SetRow(b.data.ColNames(), rows[0])
+	} else {
+		b.details.SetRow(nil, nil)
+	}
 
 	cols, err := b.db.Columns(selected)
 	if err == nil {

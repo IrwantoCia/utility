@@ -16,6 +16,14 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
+// RowChangedMsg is emitted when the cursor (highlighted row) changes, carrying
+// the full column names and row values so the coordinator can propagate them
+// to the Info (details) panel.
+type RowChangedMsg struct {
+	ColNames []string
+	Values   []string
+}
+
 // defaultLimit is the number of rows fetched per table query.
 const defaultLimit = 100
 
@@ -159,33 +167,61 @@ func (d *Data) Update(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
+// Rows returns the full (untruncated) data rows.
+func (d *Data) Rows() [][]string { return d.rows }
+
+// ColNames returns the column names for the current table.
+func (d *Data) ColNames() []string { return d.colNames }
+
+// rowChangedCmd returns a tea.Cmd that emits a RowChangedMsg for the current
+// cursor position. It guards against out-of-range cursor values.
+func (d *Data) rowChangedCmd() tea.Cmd {
+	return func() tea.Msg {
+		if d.cursor >= 0 && d.cursor < len(d.rows) {
+			return RowChangedMsg{
+				ColNames: d.colNames,
+				Values:   d.rows[d.cursor],
+			}
+		}
+		return nil
+	}
+}
+
 // MoveUp decrements the cursor (clamped to 0) and scrolls the viewport.
-func (d *Data) MoveUp() {
+// Returns a command that emits RowChangedMsg for the new cursor position.
+func (d *Data) MoveUp() tea.Cmd {
 	if d.cursor > 0 {
 		d.cursor--
 		d.viewport.SetYOffset(d.cursor)
 	}
+	return d.rowChangedCmd()
 }
 
 // MoveDown increments the cursor (clamped to max row) and scrolls the viewport.
-func (d *Data) MoveDown() {
+// Returns a command that emits RowChangedMsg for the new cursor position.
+func (d *Data) MoveDown() tea.Cmd {
 	if d.cursor < len(d.rows)-1 {
 		d.cursor++
 		d.viewport.SetYOffset(d.cursor)
 	}
+	return d.rowChangedCmd()
 }
 
 // PageUp moves the cursor up by one viewport height (clamped to 0).
-func (d *Data) PageUp() {
+// Returns a command that emits RowChangedMsg for the new cursor position.
+func (d *Data) PageUp() tea.Cmd {
 	d.cursor = max(0, d.cursor-d.viewport.Height())
 	d.viewport.SetYOffset(d.cursor)
+	return d.rowChangedCmd()
 }
 
 // PageDown moves the cursor down by one viewport height (clamped to max row).
-func (d *Data) PageDown() {
+// Returns a command that emits RowChangedMsg for the new cursor position.
+func (d *Data) PageDown() tea.Cmd {
 	maxRow := max(0, len(d.rows)-1)
 	d.cursor = min(maxRow, d.cursor+d.viewport.Height())
 	d.viewport.SetYOffset(d.cursor)
+	return d.rowChangedCmd()
 }
 
 // SetTable queries the selected table's data with optional filters and stores

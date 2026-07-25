@@ -13,8 +13,8 @@ import (
 	"github.com/IrwantoCia/utility/internal/tui/style"
 )
 
-// Details renders the right panel showing column metadata, row count, and
-// indexes for the selected table.
+// Details renders the right panel showing column metadata, the currently
+// highlighted row data, row count, and indexes for the selected table.
 type Details struct {
 	db        *sqlite.DB
 	tableName string
@@ -22,11 +22,22 @@ type Details struct {
 	rowCount  int64
 	indexes   []sqlite.Index
 	errMsg    string
+
+	// Selected row data (from Data panel cursor position).
+	rowColNames []string
+	rowValues   []string
 }
 
 // New creates a Details panel backed by a live DB connection.
 func New(db *sqlite.DB) *Details {
 	return &Details{db: db}
+}
+
+// SetRow stores column names and values for the currently highlighted row
+// so the View method can render them in the "Selected Row" section.
+func (d *Details) SetRow(colNames, values []string) {
+	d.rowColNames = colNames
+	d.rowValues = values
 }
 
 // SetTable updates the panel by querying columns, row count, and indexes
@@ -115,6 +126,16 @@ func (d *Details) View(width int) string {
 			parts = append(parts, dimStyle.Render("DEFAULT "+col.Default.String))
 		}
 		lines = append(lines, strings.Join(parts, "  "))
+	}
+
+	// ── Selected Row section ──
+	if len(d.rowColNames) > 0 && len(d.rowColNames) == len(d.rowValues) {
+		lines = append(lines, "",
+			sectionTitle("Selected Row"), "")
+		for i, col := range d.rowColNames {
+			val := d.rowValues[i]
+			lines = append(lines, fmt.Sprintf("  %s : %s", labelStyle.Render(col), valStyle.Render(val)))
+		}
 	}
 
 	// ── Table info ──
