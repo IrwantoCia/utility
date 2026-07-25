@@ -110,10 +110,8 @@ func (d *Data) View() string {
 		Rows(truncatedRows...).
 		Width(width).
 		Border(lipgloss.NormalBorder()).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderLeft(false).
-		BorderRight(false).
+		BorderStyle(style.Default.TableBorder).
+		Wrap(false).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if row == table.HeaderRow {
 				return style.Default.TableHeader

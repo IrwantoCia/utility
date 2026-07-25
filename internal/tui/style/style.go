@@ -10,8 +10,10 @@ type Styles struct {
 	Highlighted      lipgloss.Style
 	Action           lipgloss.Style
 	RowHighlighted   lipgloss.Style
-	TableHeader      lipgloss.Style
-	TableRowAlt      lipgloss.Style
+	TableBorder      lipgloss.Style // dark teal border for 3D inset table depth
+	TableHeader      lipgloss.Style // bright cyan bg — raised/embossed header
+	TableRow         lipgloss.Style // dark bg — solid table surface
+	TableRowAlt      lipgloss.Style // darker bg — alternating depth contrast
 	MenuItem         lipgloss.Style
 	MenuItemSelected lipgloss.Style
 	MenuTitle        lipgloss.Style
@@ -71,14 +73,30 @@ func DefaultStyles() Styles {
 			PaddingLeft(1).
 			PaddingRight(1),
 		RowHighlighted: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("229")).
-			Background(lipgloss.Color("57")),
+			Bold(true).
+			Foreground(lipgloss.Color("255")).
+			Background(lipgloss.Color("27")).
+			Padding(0, 1),
+		// TableBorder colors the table's NormalBorder in a dark teal ("30"),
+		// creating a recessed/inset depth step against the panel's bright cyan ("45") border.
+		TableBorder: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("30")),
 		TableHeader: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("229")).
-			Background(lipgloss.Color("63")),
+			Underline(true).
+			Foreground(lipgloss.Color("255")).
+			Background(lipgloss.Color("39")).
+			Padding(0, 1),
+		// TableRow is the base style for data rows (non-alternating, non-highlighted).
+		// A dark background grounds the table as a solid surface for the 3D effect.
+		TableRow: lipgloss.NewStyle().
+			Background(lipgloss.Color("236")).
+			Padding(0, 1),
+		// TableRowAlt uses a darker bg to create alternating depth contrast
+		// that complements the raised-table appearance.
 		TableRowAlt: lipgloss.NewStyle().
-			Background(lipgloss.Color("235")),
+			Background(lipgloss.Color("234")).
+			Padding(0, 1),
 		MenuItem: lipgloss.NewStyle().
 			PaddingLeft(2).
 			PaddingRight(2).
