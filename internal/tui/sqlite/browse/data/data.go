@@ -4,6 +4,8 @@ package data
 
 import (
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
@@ -59,6 +61,10 @@ func (d *Data) Resize(ws tea.WindowSizeMsg) tea.Cmd {
 
 // View renders the data preview through the scrollable viewport with cursor
 // highlighting and auto-scroll.
+//
+// Each cell is truncated to a computed character cap so no cell can wrap to
+// multiple visual lines — guaranteeing 1-line-per-row invariant required by
+// cursor-based YOffset scrolling.
 func (d *Data) View() string {
 	if d.errMsg != "" {
 		d.viewport.SetContent(style.Default.BrowseEmpty.Render(d.errMsg))
@@ -70,10 +76,31 @@ func (d *Data) View() string {
 		return d.viewport.View()
 	}
 
+	width := d.viewport.Width()
+
+	// Compute per-cell character cap to prevent word-wrap.
+	// Total width = (colCount-1) column separators + 2*colCount cell padding + content.
+	// Assign the average content width per column, clamped to a readable minimum.
+	colCount := len(d.colNames)
+	if colCount == 0 {
+		colCount = 1
+	}
+	maxCell := max(8, width/colCount-3)
+
+	// Build truncated copy of rows so no cell text can exceed its column width.
+	truncatedRows := make([][]string, len(d.rows))
+	for i, row := range d.rows {
+		tr := make([]string, len(row))
+		for j, cell := range row {
+			tr[j] = truncateCell(cell, maxCell)
+		}
+		truncatedRows[i] = tr
+	}
+
 	t := table.New().
 		Headers(d.colNames...).
-		Rows(d.rows...).
-		Width(d.viewport.Width()).
+		Rows(truncatedRows...).
+		Width(width).
 		Border(lipgloss.NormalBorder()).
 		BorderTop(false).
 		BorderBottom(false).
@@ -89,7 +116,7 @@ func (d *Data) View() string {
 			if row%2 == 0 {
 				return style.Default.TableRowAlt.MaxHeight(1)
 			}
-			return lipgloss.NewStyle().MaxHeight(1)
+			return style.Default.TableRow.MaxHeight(1)
 		})
 
 	result := t.String()
@@ -102,6 +129,27 @@ func (d *Data) View() string {
 	d.viewport.SetContent(content)
 	d.viewport.SetYOffset(d.cursor)
 	return d.viewport.View()
+}
+
+// truncateCell guarantees s is at most maxLen Unicode code points, with an
+// ellipsis (…) appended when the string exceeds the limit. This prevents
+// lipgloss word-wrapping within table cells.
+func truncateCell(s string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
+	if len(s) <= maxLen {
+		return s
+	}
+	// Fast ASCII path: no allocation for short strings.
+	if utf8.RuneCountInString(s) <= maxLen {
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen-1]) + "…"
 }
 
 // Update delegates to the viewport model for built-in key handling.
@@ -142,6 +190,14 @@ func (d *Data) PageDown() {
 
 // SetTable queries the selected table's data with optional filters and stores
 // rows for display. Resets the cursor to the first row.
+// sanitizeCell strips vertical whitespace from a cell value to guarantee each
+// logical row renders as exactly 1 visual line — required for cursor-based
+// YOffset scrolling to stay in sync with the viewport.
+func sanitizeCell(s string) string {
+	r := strings.NewReplacer("\n", " ", "\r", " ", "\t", " ")
+	return r.Replace(s)
+}
+
 func (d *Data) SetTable(name string, filters []sqlite.Filter) {
 	d.tableName = name
 	d.filters = filters
@@ -159,7 +215,7 @@ func (d *Data) SetTable(name string, filters []sqlite.Filter) {
 	for i, row := range rows {
 		strRow := make([]string, len(row))
 		for j, val := range row {
-			strRow[j] = fmt.Sprintf("%v", val)
+			strRow[j] = sanitizeCell(fmt.Sprintf("%v", val))
 		}
 		d.rows[i] = strRow
 	}
