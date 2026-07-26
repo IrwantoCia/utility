@@ -335,6 +335,11 @@ func (b *Browse) Update(msg tea.Msg) tea.Cmd {
 			b.syncPanels()
 			return nil
 		}
+		if key.Matches(keyMsg, b.keys.Reload) {
+			b.tables.Init()
+			b.syncPanels()
+			return nil
+		}
 
 		// Panel-specific movement (not filter — it handles its own).
 		switch b.focus {
