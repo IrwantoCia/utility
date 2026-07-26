@@ -34,6 +34,7 @@ func (f *FilePicker) Close() tea.Cmd { return nil }
 func New(allowedTypes ...string) *FilePicker {
 	m := fp.New()
 	m.CurrentDirectory, _ = os.Getwd()
+	m.ShowHidden = true
 	m.ShowPermissions = false
 	m.KeyMap.Back = key.NewBinding(
 		key.WithKeys("h", "backspace", "left"),
